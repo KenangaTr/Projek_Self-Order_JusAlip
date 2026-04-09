@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// --- ENUMS (Pilihan Statis) ---
+enum RoleEnum {
+  ADMIN
+  MANAGER
+}
+
+enum PaymentStatusEnum {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum PrintStatusEnum {
+  SUCCESS
+  ERROR
+}
+
+enum PrinterTargetEnum {
+  PRINTER_A // Kasir
+  PRINTER_B // Dapur
+}
+
+// --- TABEL DATABASE ---
+
+model User {
+  id_user   Int       @id @default(autoincrement())
+  nama      String
+  username  String    @unique
+  password  String
+  role      RoleEnum
+  
+  // Relasi: User bisa melihat banyak transaksi (sebagai pengelola)
+  transaksi Transaksi[]
+}
+
+model Menu {
+  id_produk    Int       @id @default(autoincrement())
+  nama_produk  String
+  kategori     String
+  harga        Decimal   @db.Decimal(10, 2)
+  is_available Boolean   @default(true)
+
+  // Relasi ke detail transaksi
+  items        TransaksiItem[]
+}
+
+model Transaksi {
+  id_transaksi      Int               @id @default(autoincrement())
+  kode_transaksi    String            @unique
+  total_harga       Decimal           @db.Decimal(10, 2)
+  metode_pembayaran String            // Contoh: "QRIS", "TUNAI"
+  status            PaymentStatusEnum @default(PENDING)
+  tanggal           DateTime          @default(now())
+  
+  // Kasir/Admin yang bertugas (opsional karena ini self-order, bisa null)
+  user_id           Int?
+  user              User?             @relation(fields: [user_id], references: [id_user])
+
+  // Relasi
+  items             TransaksiItem[]
+  print_logs        PrintLog[]
+}
+
+model TransaksiItem {
+  id_item       Int       @id @default(autoincrement())
+  id_transaksi  Int
+  id_produk     Int
+  jumlah        Int
+  subtotal      Decimal   @db.Decimal(10, 2)
+  catatan_dapur String?   @db.Text // Penting untuk pesanan khusus (misal: "Es nya dikit")
+
+  // Definisi Relasi
+  transaksi     Transaksi @relation(fields: [id_transaksi], references: [id_transaksi], onDelete: Cascade)
+  menu          Menu      @relation(fields: [id_produk], references: [id_produk])
+}
+
+model PrintLog {
+  id_log         Int               @id @default(autoincrement())
+  id_transaksi   Int
+  printer_target PrinterTargetEnum
+  status         PrintStatusEnum
+  tanggal_cetak  DateTime          @default(now())
+
+  // Definisi Relasi
+  transaksi      Transaksi         @relation(fields: [id_transaksi], references: [id_transaksi], onDelete: Cascade)
+}
