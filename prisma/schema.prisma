@@ -57,16 +57,16 @@ model Menu {
 model Transaksi {
   id_transaksi      Int               @id @default(autoincrement())
   kode_transaksi    String            @unique
+  nama_pelanggan    String?           // <--- Tambahan untuk form Kiosk
+  no_telp           String?           // <--- Tambahan untuk form Kiosk
   total_harga       Decimal           @db.Decimal(10, 2)
   metode_pembayaran String            // Contoh: "QRIS", "TUNAI"
   status            PaymentStatusEnum @default(PENDING)
   tanggal           DateTime          @default(now())
   
-  // Kasir/Admin yang bertugas (opsional karena ini self-order, bisa null)
   user_id           Int?
   user              User?             @relation(fields: [user_id], references: [id_user])
 
-  // Relasi
   items             TransaksiItem[]
   print_logs        PrintLog[]
 }
@@ -75,11 +75,10 @@ model TransaksiItem {
   id_item       Int       @id @default(autoincrement())
   id_transaksi  Int
   id_produk     Int
-  jumlah        Int
+  jumlah        Int       // Skema Anda menggunakan 'jumlah', bukan 'qty'
   subtotal      Decimal   @db.Decimal(10, 2)
-  catatan_dapur String?   @db.Text // Penting untuk pesanan khusus (misal: "Es nya dikit")
+  catatan_dapur String?   @db.Text 
 
-  // Definisi Relasi
   transaksi     Transaksi @relation(fields: [id_transaksi], references: [id_transaksi], onDelete: Cascade)
   menu          Menu      @relation(fields: [id_produk], references: [id_produk])
 }
