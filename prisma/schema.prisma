@@ -48,6 +48,7 @@ model Menu {
   kategori     String
   harga        Decimal   @db.Decimal(10, 2)
   is_available Boolean   @default(true)
+  gambar       String?
 
   // Relasi ke detail transaksi
   items        TransaksiItem[]
