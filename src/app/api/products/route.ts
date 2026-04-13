@@ -6,12 +6,41 @@ import path from 'path';
 // Method GET: Mengambil data
 export async function GET() {
   try {
-    const products = await prisma.menu.findMany({
-      orderBy: { id_produk: 'desc' }
+    // 1. Ambil semua produk aktif
+    const allProducts = await prisma.menu.findMany({
+      where: { is_available: true }
     });
-    return NextResponse.json(products, { status: 200 });
+
+    // 2. Hitung rentang 30 hari terakhir
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // 3. Cari 5 Produk Teratas (Top 5)
+    const topSellersQuery = await prisma.transaksiItem.groupBy({
+      by: ['id_produk'],
+      _sum: { jumlah: true },
+      where: {
+        transaksi: {
+          tanggal: { gte: thirtyDaysAgo }
+        }
+      },
+      orderBy: { _sum: { jumlah: 'desc' } },
+      take: 5
+    });
+
+    const bestSellerIds = topSellersQuery.map(item => item.id_produk);
+
+    // Filter produk mana saja yang masuk kategori best seller
+    const bestSellers = allProducts.filter(p => bestSellerIds.includes(p.id_produk));
+
+    return NextResponse.json({
+      bestSellers,
+      allProducts
+    }, { status: 200 });
+
   } catch (error) {
-    return NextResponse.json({ error: "Gagal mengambil data" }, { status: 500 });
+    console.error("Gagal memuat produk:", error);
+    return NextResponse.json({ error: "Gagal memuat data" }, { status: 500 });
   }
 }
 

@@ -21,7 +21,15 @@ export default function ProductPage() {
   const fetchProducts = async () => {
     try {
       const response = await fetch('/api/products');
-      if (response.ok) setProducts(await response.json());
+      if (response.ok) {
+        const data = await response.json();
+        // PERBAIKAN: Cek apakah API merespons dengan format baru (ada allProducts)
+        if (data.allProducts) {
+          setProducts(data.allProducts);
+        } else {
+          setProducts(data);
+        }
+      }
     } catch (error) {
       console.error("Gagal memuat:", error);
     } finally {
@@ -71,7 +79,7 @@ export default function ProductPage() {
   const handleEditClick = (product: any) => {
     setEditingProduct(product);
     setImagePreview(product.gambar || null); // Load gambar lama ke kotak preview
-    setImageFile(null); // Kosongkan file uplaod baru
+    setImageFile(null); // Kosongkan file upload baru
     setIsEditMode(true);
   };
 

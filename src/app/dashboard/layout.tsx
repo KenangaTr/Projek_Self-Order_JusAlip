@@ -24,7 +24,8 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen bg-[#f5f7f5] flex">
       {/* === SIDEBAR KIRI === */}
-      <aside className="w-64 bg-[#e9ece6] flex flex-col py-8 shadow-md z-10">
+      {/* PENAMBAHAN: sticky, top-0, dan h-screen ditambahkan ke baris di bawah ini */}
+      <aside className="w-64 bg-[#e9ece6] flex flex-col py-8 shadow-md z-10 sticky top-0 h-screen">
         {/* Logo */}
         <div className="flex items-center justify-center gap-2 mb-12">
           <div className="w-10 h-12 border-2 border-[#061e12] rounded-md flex items-center justify-center text-[#061e12] font-bold text-xs text-center">
