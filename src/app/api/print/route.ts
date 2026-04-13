@@ -59,7 +59,10 @@ export async function POST(request: Request) {
     
     // Perintah memotong kertas (jika printer support auto-cutter)
     // dan menggulung kertas agar mudah disobek
-    printer.cut();
+    printer.newLine();
+    printer.newLine();
+    printer.newLine();
+
     printer.beep(); // Opsional: Bunyi beep setelah selesai
 
     // === EKSEKUSI CETAK (KIRIM KE HARDWARE) ===

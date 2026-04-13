@@ -4,22 +4,21 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
 export default function KioskPage() {
-  // State Data yang sudah dipisah berdasarkan API baru
   const [data, setData] = useState<{bestSellers: any[], allProducts: any[]}>({
     bestSellers: [],
     allProducts: []
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  // State Keranjang & Transaksi
   const [cart, setCart] = useState<Record<number, number>>({});
-  const [modalView, setModalView] = useState<'closed' | 'detail' | 'qris' | 'receipt'>('closed');
+  
+  // PERUBAHAN: Mode 'receipt' sudah dihapus dari state
+  const [modalView, setModalView] = useState<'closed' | 'detail' | 'qris'>('closed');
   const [showPhoneError, setShowPhoneError] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false); 
   
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [lastTransaction, setLastTransaction] = useState<any>(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -35,7 +34,6 @@ export default function KioskPage() {
     fetchProducts();
   }, []);
 
-  // Logika Keranjang
   const handleAdd = (id: number) => setCart(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
   const handleRemove = (id: number) => {
     setCart(prev => {
@@ -47,7 +45,6 @@ export default function KioskPage() {
 
   const totalItems = Object.values(cart).reduce((a, b) => a + b, 0);
   
-  // Menggunakan data.allProducts karena semua produk pasti ada di sini
   const totalPrice = Object.entries(cart).reduce((total, [id, qty]) => {
     const product = data.allProducts.find(p => p.id_produk === Number(id));
     return total + (product ? Number(product.harga) * qty : 0);
@@ -59,6 +56,7 @@ export default function KioskPage() {
     setModalView('qris'); 
   };
 
+  // PERUBAHAN UTAMA: Gabungan Simpan ke Database & Langsung Cetak!
   const handleFinishTransaction = async () => {
     const cartItemsData = Object.entries(cart).map(([id, qty]) => {
       const product = data.allProducts.find(p => p.id_produk === Number(id));
@@ -79,6 +77,7 @@ export default function KioskPage() {
     };
 
     try {
+      // 1. Simpan Transaksi ke Database
       const res = await fetch('/api/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -87,14 +86,28 @@ export default function KioskPage() {
 
       if (res.ok) {
         const savedData = await res.json();
-        setLastTransaction({ ...savedData, items_detail: cartItemsData });
-        setModalView('receipt');
         
-        // Bersihkan State
+        // 2. Siapkan data untuk dikirim ke Printer
+        const transactionToPrint = { ...savedData, items_detail: cartItemsData };
+
+        // 3. Tembak langsung ke API Printer Thermal tanpa nunggu
+        try {
+          await fetch('/api/print', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(transactionToPrint)
+          });
+        } catch (printError) {
+          console.error("Gagal terhubung ke printer:", printError);
+        }
+
+        // 4. Langsung tutup modal dan bersihkan form untuk antrean baru!
+        setModalView('closed');
         setCart({});
         setCustomerName("");
         setCustomerPhone("");
         setPaymentSuccess(false);
+
       } else {
         alert("Terjadi kesalahan saat menyimpan transaksi.");
       }
@@ -103,51 +116,14 @@ export default function KioskPage() {
     }
   };
 
-  // Cetak ke Backend Node.js
-  const handlePrint = async () => {
-    if (!lastTransaction) return;
-    try {
-      const res = await fetch('/api/print', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lastTransaction)
-      });
-      if (res.ok) {
-        alert("Instruksi cetak berhasil dikirim ke printer!");
-        setModalView('closed');
-      } else {
-        const errorData = await res.json();
-        alert(`Gagal mencetak: ${errorData.error}`);
-      }
-    } catch (error) {
-      alert("Tidak dapat terhubung ke server kasir.");
-    }
-  };
-
   if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-[#061e12] text-white font-bold text-xl">Memuat Menu Jus Alif...</div>;
 
   return (
     <>
-      {/* CSS KHUSUS UNTUK PRINTER THERMAL (Opsional jika pakai direct print) */}
-      <style dangerouslySetInnerHTML={{__html: `
-        html { scroll-behavior: smooth; }
-        @media print {
-          @page { margin: 0 !important; size: 58mm auto; }
-          body * { visibility: hidden; }
-          #printable-receipt, #printable-receipt * { visibility: visible; }
-          #printable-receipt {
-            position: absolute; left: -1; top: 0; width: 100% !important; max-width: 55mm !important;
-            padding: 2mm 2mm 0 2mm !important; margin: 0 !important;
-            font-family: 'Courier New', Courier, monospace !important; font-size: 12px !important;
-            font-weight: bold !important; color: #000 !important; line-height: 1.2 !important; word-wrap: break-word !important;
-          }
-          .no-print { display: none !important; }
-        }
-      `}} />
+      <style dangerouslySetInnerHTML={{__html: `html { scroll-behavior: smooth; }`}} />
 
       <main className="min-h-screen flex flex-col items-center pb-32 bg-[#061e12]">
         
-        {/* NAVBAR STICKY */}
         <nav className="fixed top-0 w-full z-50 bg-[#061e12]/80 backdrop-blur-md border-b border-white/10 px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-8 h-10 bg-white rounded flex items-center justify-center text-[#061e12] font-black text-[10px] text-center leading-tight">Jus<br/>Alif</div>
@@ -162,7 +138,6 @@ export default function KioskPage() {
           </div>
         </nav>
 
-        {/* HERO SECTION */}
         <section className="w-full max-w-7xl px-8 mt-28">
           <div className="relative w-full h-[400px] rounded-3xl overflow-hidden bg-[#123524] flex items-center p-12 shadow-2xl border border-white/5">
             <div className="relative z-10 max-w-md">
@@ -174,7 +149,6 @@ export default function KioskPage() {
           </div>
         </section>
 
-        {/* ABOUT US SECTION */}
         <section id="about" className="w-full max-w-7xl px-8 mt-24 py-12">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -199,7 +173,6 @@ export default function KioskPage() {
           </div>
         </section>
 
-        {/* SECTION 1: BEST SELLER */}
         {data.bestSellers.length > 0 && (
           <section className="w-full max-w-7xl px-8 mt-24">
             <div className="flex flex-col items-center mb-10">
@@ -225,7 +198,6 @@ export default function KioskPage() {
           </section>
         )}
 
-        {/* SECTION 2: SEMUA PRODUK */}
         <section id="products" className="w-full max-w-7xl px-8 mt-24 border-t border-white/10 pt-16">
           <div className="flex flex-col items-center mb-10">
             <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">Semua <span className="text-[#c2aa6b] not-italic">Menu</span></h2>
@@ -250,7 +222,6 @@ export default function KioskPage() {
           )}
         </section>
 
-        {/* FLOATING CART BUTTON */}
         {totalItems > 0 && modalView === 'closed' && (
           <div className="fixed bottom-0 left-0 w-full p-6 z-40 flex justify-center bg-gradient-to-t from-[#061e12] via-[#061e12]/80 to-transparent pointer-events-none">
             <button onClick={() => setModalView('detail')} className="pointer-events-auto bg-[#c2aa6b] text-[#061e12] px-8 py-4 rounded-full font-extrabold shadow-[0_10px_40px_rgba(194,170,107,0.3)] flex items-center gap-6 hover:scale-105 transition-transform">
@@ -262,24 +233,19 @@ export default function KioskPage() {
           </div>
         )}
 
-        {/* OVERLAY MODAL */}
         {modalView !== 'closed' && (
           <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex flex-col items-center justify-center p-4">
             
-            {/* Header Modal UI */}
-            {modalView !== 'receipt' && (
-              <div className="w-full max-w-2xl flex items-center mb-6 relative">
-                {modalView === 'detail' && <button onClick={() => setModalView('closed')} className="text-white text-3xl font-bold absolute left-0 hover:text-[#c2aa6b] transition">←</button>}
-                {modalView === 'qris' && !paymentSuccess && <button onClick={() => setModalView('detail')} className="text-white text-3xl font-bold absolute left-0 hover:text-[#c2aa6b] transition">←</button>}
-                <h2 className="text-[#c2aa6b] text-lg font-black tracking-widest text-center w-full uppercase">
-                  {modalView === 'detail' ? 'DETAIL PESANAN' : 'PEMBAYARAN QRIS'}
-                </h2>
-              </div>
-            )}
+            <div className="w-full max-w-2xl flex items-center mb-6 relative">
+              {modalView === 'detail' && <button onClick={() => setModalView('closed')} className="text-white text-3xl font-bold absolute left-0 hover:text-[#c2aa6b] transition">←</button>}
+              {modalView === 'qris' && !paymentSuccess && <button onClick={() => setModalView('detail')} className="text-white text-3xl font-bold absolute left-0 hover:text-[#c2aa6b] transition">←</button>}
+              <h2 className="text-[#c2aa6b] text-lg font-black tracking-widest text-center w-full uppercase">
+                {modalView === 'detail' ? 'DETAIL PESANAN' : 'PEMBAYARAN QRIS'}
+              </h2>
+            </div>
 
-            <div className={`bg-white text-[#061e12] w-full ${modalView === 'receipt' ? 'max-w-sm' : 'max-w-2xl'} rounded-[2rem] p-8 md:p-10 relative shadow-2xl min-h-[400px]`}>
+            <div className="bg-white text-[#061e12] w-full max-w-2xl rounded-[2rem] p-8 md:p-10 relative shadow-2xl min-h-[400px]">
               
-              {/* === MODE: DETAIL PESANAN === */}
               {modalView === 'detail' && (
                 <>
                   <div className="flex justify-end mb-6 border-b border-gray-200 pb-4">
@@ -324,7 +290,6 @@ export default function KioskPage() {
                 </>
               )}
 
-              {/* === MODE: QRIS === */}
               {modalView === 'qris' && (
                 <div className="flex flex-col items-center justify-center py-8">
                   <div className="font-black text-3xl tracking-tighter mb-8 text-[#061e12]">Scan QRIS</div>
@@ -339,73 +304,10 @@ export default function KioskPage() {
                         <div className="w-full flex justify-between text-sm font-bold mb-8 border-t border-gray-100 pt-4">
                           <span className="text-gray-400">Total</span><span className="text-xl">Rp {totalPrice.toLocaleString('id-ID')}</span>
                         </div>
-                        <button onClick={handleFinishTransaction} className="w-full bg-[#123524] text-white py-3 rounded-full font-black hover:bg-black transition">LANJUT CETAK STRUK</button>
+                        {/* Tombol diperbarui: Langsung Selesai & Cetak */}
+                        <button onClick={handleFinishTransaction} className="w-full bg-[#123524] text-white py-3 rounded-full font-black hover:bg-black transition">SELESAI & CETAK STRUK</button>
                       </div>
                     )}
-                  </div>
-                </div>
-              )}
-
-              {/* === MODE: PREVIEW & CETAK STRUK THERMAL === */}
-              {modalView === 'receipt' && lastTransaction && (
-                <div className="flex flex-col items-center py-4">
-                  <h3 className="font-black text-xl mb-6 text-[#061e12] no-print">Pratinjau Struk</h3>
-                  
-                  {/* WADAH STRUK YANG AKAN DICETAK */}
-                  <div id="printable-receipt" className="bg-white p-6 w-full max-w-[300px] border border-gray-200 shadow-sm font-mono text-[12px] leading-tight text-black mx-auto relative overflow-hidden">
-                    {/* Efek gerigi kertas struk di atas/bawah */}
-                    <div className="absolute top-0 left-0 w-full h-2 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIxMCI+PHBvbHlnb24gcG9pbnRzPSIwLDEwIDEwLDAgMjAsMTAiIGZpbGw9IiNmM2Y0ZjYiLz48L3N2Zz4=')] bg-repeat-x opacity-50 no-print"></div>
-
-                    <div className="text-center mb-6 mt-2">
-                      <h2 className="font-bold text-2xl tracking-widest m-0">JUS ALIF</h2>
-                      <p className="m-0 text-[10px] mt-1">Jl. Contoh Tasikmalaya No. 123</p>
-                      <p className="m-0 text-[10px]">Telp: 0812-3456-7890</p>
-                    </div>
-                    
-                    <div className="border-t-2 border-dashed border-gray-300 my-3"></div>
-                    
-                    <div className="mb-3 space-y-1">
-                      <div className="flex justify-between"><span className="text-[10px]">Kode:</span><span className="text-[10px] font-bold">{lastTransaction.kode_transaksi}</span></div>
-                      <div className="flex justify-between"><span className="text-[10px]">Tgl:</span><span className="text-[10px]">{new Date(lastTransaction.tanggal).toLocaleString('id-ID')}</span></div>
-                      <div className="flex justify-between"><span className="text-[10px]">Pelanggan:</span><span className="text-[10px] uppercase font-bold">{lastTransaction.nama_pelanggan}</span></div>
-                    </div>
-                    
-                    <div className="border-t-2 border-dashed border-gray-300 my-3"></div>
-                    
-                    <div className="mb-3 space-y-2">
-                      {lastTransaction.items_detail.map((item: any, idx: number) => (
-                        <div key={idx}>
-                          <div className="font-bold">{item.nama_produk}</div>
-                          <div className="flex justify-between text-gray-700">
-                            <span>{item.qty} x {Number(item.subtotal/item.qty).toLocaleString('id-ID')}</span>
-                            <span className="font-bold text-black">{Number(item.subtotal).toLocaleString('id-ID')}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="border-t-2 border-dashed border-gray-300 my-3"></div>
-                    
-                    <div className="font-black flex justify-between text-[16px] my-2">
-                      <span>TOTAL</span>
-                      <span>Rp {Number(lastTransaction.total_harga).toLocaleString('id-ID')}</span>
-                    </div>
-                    <div className="flex justify-between text-[10px] text-gray-600 font-bold">
-                      <span>Metode</span>
-                      <span>{lastTransaction.metode_pembayaran}</span>
-                    </div>
-
-                    <div className="border-t-2 border-dashed border-gray-300 my-3"></div>
-                    
-                    <div className="text-center mt-6 mb-2">
-                      <p className="m-0 text-[11px] font-bold">Terima Kasih</p>
-                      <p className="m-0 text-[10px] text-gray-500">Silakan datang kembali</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-3 mt-8 w-full max-w-[300px] no-print">
-                    <button onClick={handlePrint} className="w-full bg-[#123524] text-white py-3 rounded-xl font-black shadow-lg hover:bg-black transition">🖨️ CETAK KE MESIN THERMAL</button>
-                    <button onClick={() => setModalView('closed')} className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl font-bold hover:bg-gray-200 transition">Selesai & Antrean Baru</button>
                   </div>
                 </div>
               )}
