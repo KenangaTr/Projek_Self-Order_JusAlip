@@ -167,24 +167,54 @@ export default function KioskPage() {
 
       {/* Bagian web dibungkus div agar rapi */}
       <main className="min-h-screen flex flex-col items-center pb-32">
-        {/* ... (NAVBAR, HERO, ABOUT SECTION TETAP SAMA) ... */}
-        <nav className="w-full max-w-7xl px-8 py-6 flex justify-between items-center">
+        {/* NAVBAR STICKY */}
+        <nav className="fixed top-0 w-full z-50 bg-[#061e12]/80 backdrop-blur-md border-b border-white/10 px-8 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-12 bg-white rounded-md flex items-center justify-center text-[#061e12] font-bold text-xs text-center">Jus<br/>Alif</div>
+            <div className="w-8 h-10 bg-white rounded flex items-center justify-center text-[#061e12] font-black text-[10px] text-center">Jus<br/>Alif</div>
+            <span className="text-white font-bold tracking-tighter text-lg">ALIF POS</span>
           </div>
-          <div className="flex gap-8 text-sm font-medium text-gray-200">
-            <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
-            <Link href="#products" className="hover:text-white transition">Products</Link>
+          
+          <div className="hidden md:flex gap-8 text-xs font-bold uppercase tracking-widest text-gray-300">
+            <a onClick={() => window.scrollTo(0,0)} className="hover:text-[#c2aa6b] transition">Dashboard</a>
+            <a href="#about" className="hover:text-[#c2aa6b] transition">About Us</a>
+            <a href="#products" className="hover:text-[#c2aa6b] transition">Product</a>
+            <Link href="/login" className="bg-[#c2aa6b] text-[#061e12] px-4 py-1.5 rounded-full hover:scale-105 transition">Login</Link>
           </div>
         </nav>
 
-        <section className="w-full max-w-7xl px-8 mt-4">
-          <div className="relative w-full h-[400px] rounded-2xl overflow-hidden bg-[#123524] flex items-center p-12 shadow-xl">
+        {/* HERO SECTION (Beri margin-top agar tidak tertutup navbar) */}
+        <section className="w-full max-w-7xl px-8 mt-24">
+          <div className="relative w-full h-[400px] rounded-3xl overflow-hidden bg-[#123524] flex items-center p-12 shadow-2xl border border-white/5">
             <div className="relative z-10 max-w-md">
-              <div className="bg-[#b54a4a] text-white text-xs font-bold px-3 py-1 rounded-full w-max mb-4 shadow">Hanya 15RB</div>
-              <h1 className="text-5xl font-extrabold leading-tight mb-2 tracking-wide text-white drop-shadow-md">SEMUA <br/><span className="text-4xl text-[#c2aa6b]">HARGA</span> 15RB</h1>
-              <p className="text-gray-300 text-sm mb-8 drop-shadow">Rasakan Kesegaran Buah Asli Pilihan Terbaik</p>
-              <button className="bg-[#c2aa6b] text-[#061e12] font-bold py-3 px-8 rounded-full shadow-lg hover:bg-[#d4bd7e] hover:scale-105 transition transform">Shop now</button>
+              <div className="bg-[#b54a4a] text-white text-[10px] font-black px-3 py-1 rounded-full w-max mb-4 uppercase tracking-widest shadow-lg">Promo Spesial</div>
+              <h1 className="text-5xl font-black leading-tight mb-2 text-white italic">FRESH <br/><span className="text-[#c2aa6b] not-italic">EVERYDAY</span></h1>
+              <p className="text-gray-400 text-sm mb-8 font-medium">Nikmati kesegaran buah asli pilihan langsung dari petani lokal untuk harimu yang lebih sehat.</p>
+              <a href="#products" className="bg-[#c2aa6b] text-[#061e12] font-black py-4 px-10 rounded-full shadow-xl hover:shadow-[#c2aa6b]/20 transition transform hover:-translate-y-1 inline-block">PESAN SEKARANG</a>
+            </div>
+          </div>
+        </section>
+
+        {/* ABOUT US SECTION */}
+        <section id="about" className="w-full max-w-7xl px-8 mt-24 py-12">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h2 className="text-4xl font-black text-white italic">Tentang <span className="text-[#c2aa6b] not-italic">Jus Alif</span></h2>
+              <p className="text-gray-400 leading-relaxed font-medium">
+                Berawal dari semangat untuk menghadirkan minuman sehat yang jujur, Jus Alif hadir dengan konsep 100% buah murni tanpa pemanis buatan. Kami percaya bahwa kesehatan adalah investasi terbaik, dan itu dimulai dari apa yang kita minum setiap hari.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-[#123524] p-4 rounded-2xl border border-white/5">
+                  <h4 className="text-[#c2aa6b] font-black text-xl">100%</h4>
+                  <p className="text-white text-xs font-bold uppercase tracking-widest mt-1">Buah Segar</p>
+                </div>
+                <div className="bg-[#123524] p-4 rounded-2xl border border-white/5">
+                  <h4 className="text-[#c2aa6b] font-black text-xl">0%</h4>
+                  <p className="text-white text-xs font-bold uppercase tracking-widest mt-1">Pengawet</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-[#c2aa6b]/10 rounded-3xl h-64 md:h-96 flex items-center justify-center border border-[#c2aa6b]/20">
+              <span className="text-[#c2aa6b] font-black italic text-2xl tracking-widest opacity-50">#SegarItuAlif</span>
             </div>
           </div>
         </section>

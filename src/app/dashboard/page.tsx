@@ -16,6 +16,21 @@ export default function DashboardPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
+  const handleLogout = async () => {
+    try {
+      // Panggil API untuk menghapus cookie
+      const res = await fetch('/api/auth/logout', { method: 'POST' });
+      
+      if (res.ok) {
+        // Hard redirect ke halaman utama (Kiosk) & bersihkan cache browser
+        window.location.href = '/'; 
+      }
+    } catch (error) {
+      console.error("Logout gagal:", error);
+      alert("Terjadi kesalahan saat logout.");
+    }
+  };
+  
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
