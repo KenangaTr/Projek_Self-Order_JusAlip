@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line, PieChart, Pie, Cell, Legend
 } from 'recharts';
 
-// Warna elegan untuk Pie Chart
 const COLORS = ['#c2aa6b', '#567261', '#123524', '#e9ece6'];
 
 export default function DashboardPage() {
+  const [timeFilter, setTimeFilter] = useState('30days');
   const [stats, setStats] = useState<any>({
     totalTransaksi: 0, totalPendapatan: 0, totalItemTerjual: 0,
     grafikPenjualan: [], trendPendapatan: [], grafikMetode: [], transaksiTerbaru: []
@@ -18,8 +18,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const fetchDashboardData = async () => {
+      setIsLoading(true);
       try {
-        const response = await fetch('/api/dashboard');
+        const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
         if (response.ok) setStats(await response.json());
       } catch (error) {
         console.error("Gagal memuat:", error);
@@ -28,51 +29,116 @@ export default function DashboardPage() {
       }
     };
     fetchDashboardData();
-  }, []);
+  }, [timeFilter]);
 
-  if (isLoading) return <div className="p-10 text-center font-bold text-gray-500 animate-pulse">Menyiapkan Dashboard Enterprise...</div>;
+  // === FUNGSI BARU: MENGHITUNG TEKS TANGGAL UNTUK SUB-JUDUL ===
+  const getDateRangeLabel = () => {
+    const now = new Date();
+    const optionsFull: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
+    const optionsShort: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+
+    if (timeFilter === 'today') {
+      return now.toLocaleDateString('id-ID', optionsFull);
+    }
+    
+    if (timeFilter === 'yesterday') {
+      const yesterday = new Date();
+      yesterday.setDate(now.getDate() - 1);
+      return yesterday.toLocaleDateString('id-ID', optionsFull);
+    }
+    
+    if (timeFilter === '7days') {
+      const start = new Date();
+      start.setDate(now.getDate() - 6);
+      return `${start.toLocaleDateString('id-ID', optionsShort)} - ${now.toLocaleDateString('id-ID', optionsFull)}`;
+    }
+    
+    if (timeFilter === '30days') {
+      const start = new Date();
+      start.setDate(now.getDate() - 29);
+      return `${start.toLocaleDateString('id-ID', optionsShort)} - ${now.toLocaleDateString('id-ID', optionsFull)}`;
+    }
+    
+    return '';
+  };
+
+  if (isLoading && stats.totalTransaksi === 0) return <div className="p-10 text-center font-bold text-gray-500 animate-pulse">Menyiapkan Dashboard...</div>;
 
   return (
     <div className="max-w-7xl mx-auto pb-12">
-      <h1 className="text-3xl font-extrabold text-[#061e12] mb-2">Dashboard Analytics</h1>
-      <p className="text-gray-500 font-medium mb-8">Pantau peforma bisnis Jus Alif Anda secara real-time.</p>
+      <div className="flex justify-between items-end mb-8">
+        <div>
+          <h1 className="text-3xl font-extrabold text-[#061e12] mb-2">Dashboard Analytics</h1>
+          <p className="text-gray-500 font-medium">Pantau performa bisnis Jus Alif Anda secara real-time.</p>
+        </div>
+      </div>
 
       {/* 1. KOTAK RINGKASAN */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
+      <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
           <div><p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Total Transaksi</p><h2 className="text-4xl font-black text-[#061e12]">{stats.totalTransaksi}</h2></div>
           <div className="w-12 h-12 bg-[#e9ece6] rounded-full flex items-center justify-center text-[#567261] text-xl font-black">🧾</div>
         </div>
-        <div className="bg-gradient-to-br from-[#123524] to-[#061e12] rounded-2xl p-6 shadow-lg border border-[#163d27] flex items-center justify-between text-white transform hover:scale-[1.02] transition">
+        <div className="bg-[#123524] rounded-2xl p-6 shadow-lg border border-[#163d27] flex items-center justify-between text-white transform hover:scale-[1.02] transition">
           <div><p className="text-xs text-[#c2aa6b] font-bold mb-1 uppercase tracking-wider">Total Pendapatan</p><h2 className="text-3xl lg:text-4xl font-black">Rp{Number(stats.totalPendapatan).toLocaleString('id-ID')}</h2></div>
           <div className="w-12 h-12 bg-[#2a4d3c] rounded-full flex items-center justify-center text-[#c2aa6b] text-xl font-black">💰</div>
         </div>
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
           <div><p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Jus Terjual</p><h2 className="text-4xl font-black text-[#061e12]">{stats.totalItemTerjual} <span className="text-lg">Cup</span></h2></div>
           <div className="w-12 h-12 bg-[#e9ece6] rounded-full flex items-center justify-center text-[#567261] text-xl font-black">🥤</div>
         </div>
       </div>
 
       {/* 2. ROW GRAFIK UTAMA */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         
-        {/* Trend Garis (Lebar 2 Kolom) */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="font-extrabold text-lg mb-6 text-[#061e12]">📈 Tren Pendapatan</h3>
-          <div className="flex-1 min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={stats.trendPendapatan} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} tickFormatter={(value) => `Rp${value/1000}k`} />
-                <RechartsTooltip cursor={{stroke: '#e5e7eb', strokeWidth: 2}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} formatter={(value: any) => `Rp ${Number(value).toLocaleString('id-ID')}`} />
-                <Line type="monotone" dataKey="total" stroke="#567261" strokeWidth={4} dot={{ r: 4, fill: '#c2aa6b', strokeWidth: 2 }} activeDot={{ r: 8 }} />
-              </LineChart>
-            </ResponsiveContainer>
+        {/* Trend Garis */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+          
+          <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h3 className="font-extrabold text-lg text-[#061e12]">📈 Tren Pendapatan</h3>
+              {/* KETERANGAN TANGGAL DINAMIS */}
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
+                {getDateRangeLabel()}
+              </p>
+            </div>
+            
+            <div className="flex bg-[#e9ece6] p-1 rounded-lg">
+              <button onClick={() => setTimeFilter('today')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'today' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Hari Ini</button>
+              <button onClick={() => setTimeFilter('yesterday')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'yesterday' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Kemarin</button>
+              <button onClick={() => setTimeFilter('7days')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === '7days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>7 Hari</button>
+              <button onClick={() => setTimeFilter('30days')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === '30days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>30 Hari</button>
+            </div>
+          </div>
+
+          <div className="p-6 flex-1 min-h-[300px]">
+            {stats.trendPendapatan.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={stats.trendPendapatan} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} tickFormatter={(value) => `Rp${value/1000}k`} />
+                  <RechartsTooltip 
+                    cursor={{stroke: '#e5e7eb', strokeWidth: 2}} 
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
+                    formatter={(value: any) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']}
+                    labelFormatter={(label) => {
+                      if (timeFilter === 'today') return `Hari Ini, Pukul ${label}`;
+                      if (timeFilter === 'yesterday') return `Kemarin, Pukul ${label}`;
+                      return `Tanggal: ${label}`;
+                    }}
+                  />
+                  <Line type="monotone" dataKey="total" stroke="#567261" strokeWidth={4} dot={{ r: 4, fill: '#c2aa6b', strokeWidth: 2 }} activeDot={{ r: 8 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold">Tidak ada data.</div>
+            )}
           </div>
         </div>
 
-        {/* Pie Chart Metode Bayar (1 Kolom) */}
+        {/* Pie Chart */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col items-center">
           <h3 className="font-extrabold text-lg mb-2 text-[#061e12] w-full text-left">💳 Metode Pembayaran</h3>
           <div className="flex-1 w-full min-h-[250px]">
@@ -91,26 +157,27 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. ROW GRAFIK BAR & TABEL TRANSAKSI TERBARU */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Bar Chart (Menu Terlaris) */}
+      {/* 3. ROW GRAFIK BAR & TABEL */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
-          <h3 className="font-extrabold text-lg mb-6 text-[#061e12]">🏆 Top 5 Menu Terlaris</h3>
+          <h3 className="font-extrabold text-lg mb-6 text-[#061e12]">🏆 Top Menu Terlaris</h3>
           <div className="flex-1 min-h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.grafikPenjualan} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
-                <XAxis dataKey="name" tick={{fill: '#9ca3af', fontSize: 11, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-                <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-                <RechartsTooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
-                <Bar dataKey="total" name="Cup Terjual" fill="#c2aa6b" radius={[6, 6, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
+             {stats.grafikPenjualan.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.grafikPenjualan} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                  <XAxis dataKey="name" tick={{fill: '#9ca3af', fontSize: 11, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                  <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
+                  <RechartsTooltip cursor={{fill: '#f9fafb'}} contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} />
+                  <Bar dataKey="total" name="Cup Terjual" fill="#c2aa6b" radius={[6, 6, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+             ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold text-sm">Data kosong.</div>
+             )}
           </div>
         </div>
 
-        {/* Tabel Transaksi Terakhir */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
           <div className="p-6 border-b border-gray-100 flex justify-between items-center">
             <h3 className="font-extrabold text-lg text-[#061e12]">🕒 Transaksi Terbaru</h3>
@@ -128,7 +195,7 @@ export default function DashboardPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {stats.transaksiTerbaru.length === 0 ? (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 font-bold">Belum ada transaksi hari ini.</td></tr>
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 font-bold">Belum ada transaksi.</td></tr>
                 ) : (
                   stats.transaksiTerbaru.map((trx: any) => (
                     <tr key={trx.id_transaksi} className="hover:bg-gray-50 transition">
@@ -145,7 +212,6 @@ export default function DashboardPage() {
             </table>
           </div>
         </div>
-
       </div>
     </div>
   );
