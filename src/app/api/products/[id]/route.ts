@@ -61,14 +61,42 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 }
 
 // Method DELETE: Untuk MENGHAPUS data
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const resolvedParams = await params;
     const productId = parseInt(resolvedParams.id);
-    await prisma.menu.delete({ where: { id_produk: productId } });
-    return NextResponse.json({ message: "Produk berhasil dihapus" }, { status: 200 });
-  } catch (error) {
+
+    // 1. KITA COBA HAPUS PERMANEN DULU
+    await prisma.menu.delete({ 
+      where: { id_produk: productId } 
+    });
+    
+    return NextResponse.json({ message: "Produk berhasil dihapus permanen" }, { status: 200 });
+
+  } catch (error: any) {
+    // 2. TANGKAP ERROR P2003 (Foreign Key Constraint)
+    if (error.code === 'P2003') {
+      console.log("Produk ada di riwayat transaksi. Mengubah status menjadi tidak aktif (Soft Delete).");
+      
+      const resolvedParams = await params;
+      const productId = parseInt(resolvedParams.id);
+      
+      // Lakukan "Soft Delete" dengan mematikan is_available
+      await prisma.menu.update({
+        where: { id_produk: productId },
+        data: { is_available: false }
+      });
+
+      return NextResponse.json({ 
+        message: "Produk diarsipkan (tidak dihapus permanen karena ada riwayat transaksi)" 
+      }, { status: 200 });
+    }
+
+    // Jika error lain
     console.error("Gagal menghapus produk:", error);
-    return NextResponse.json({ error: "Gagal menghapus data" }, { status: 500 });
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }
