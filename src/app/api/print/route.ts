@@ -4,74 +4,103 @@ import { ThermalPrinter, PrinterTypes, CharacterSet } from "node-thermal-printer
 export async function POST(request: Request) {
   try {
     const data = await request.json();
-    
-    let printer = new ThermalPrinter({
+
+    const printerKasir = new ThermalPrinter({
       type: PrinterTypes.EPSON,
-  interface: '\\\\localhost\\POS58', // <--- Pastikan nama share-nya benar POS58
-  characterSet: CharacterSet.PC852_LATIN2,
+      interface: '//localhost/ALGOO_KASIR',
+      characterSet: CharacterSet.PC852_LATIN2,
       removeSpecialCharacters: false,
-      lineCharacter: "-",
-      width: 32,
     });
 
-    printer.alignCenter();
-    printer.bold(true);
-    printer.setTextSize(1, 1);
-    printer.println("JUS ALIF");
-    
-    printer.bold(false);
-    printer.setTextNormal();
-    printer.println("Jl. Puspa Indah 1");
-    printer.println("Telp: 0821-2103-3062");
-    printer.drawLine(); // Garis putus-putus
-    
-    printer.alignLeft();
-    printer.println(`Kode : ${data.kode_transaksi}`);
-    printer.println(`Tgl  : ${new Date(data.tanggal).toLocaleString('id-ID')}`);
-    printer.println(`Nama : ${data.nama_pelanggan}`);
-    printer.drawLine();
+    const printerDapur = new ThermalPrinter({
+      type: PrinterTypes.EPSON,
+      interface: '//localhost/ALGOO_DAPUR',
+      characterSet: CharacterSet.PC852_LATIN2,
+      removeSpecialCharacters: false,
+    });
 
-    // Loop Item Belanja
+    // --- STRUK KASIR ---
+    printerKasir.alignCenter();
+    printerKasir.bold(true);
+    printerKasir.setTextSize(1, 1);
+    printerKasir.println("JUS ALIF");
+    printerKasir.setTextSize(0, 0);
+    printerKasir.bold(false);
+    printerKasir.println("Jl. Siliwangi Tasikmalaya");
+    printerKasir.println("Telp: 0812-3456-7890");
+    printerKasir.println("--------------------------------");
+    
+    printerKasir.alignLeft();
+    printerKasir.println(`Kode : ${data.kode_transaksi}`);
+    printerKasir.println(`Tgl  : ${new Date(data.tanggal).toLocaleString('id-ID')}`);
+    printerKasir.println(`Nama : ${data.nama_pelanggan}`);
+    printerKasir.println("--------------------------------");
+    
     data.items_detail.forEach((item: any) => {
-      printer.println(item.nama_produk);
-      
-      // Format rata kanan-kiri (1 x 15.000       15.000)
-      const qtyPrice = `${item.qty} x ${Number(item.subtotal/item.qty).toLocaleString('id-ID')}`;
-      const subtotal = Number(item.subtotal).toLocaleString('id-ID');
-      
-      printer.leftRight(qtyPrice, subtotal);
+      printerKasir.println(`${item.nama_produk}`);
+      printerKasir.println(`${item.qty} x ${Number(item.subtotal/item.qty).toLocaleString('id-ID')}    ${Number(item.subtotal).toLocaleString('id-ID')}`);
     });
-
-    printer.drawLine();
     
-    // Total
-    printer.bold(true);
-    printer.leftRight("TOTAL", `Rp ${Number(data.total_harga).toLocaleString('id-ID')}`);
-    printer.bold(false);
+    printerKasir.println("--------------------------------");
+    printerKasir.bold(true);
+    printerKasir.println(`TOTAL       Rp ${Number(data.total_harga).toLocaleString('id-ID')}`);
+    printerKasir.bold(false);
+    printerKasir.println(`Metode      ${data.metode_pembayaran}`);
+    printerKasir.println("--------------------------------");
+    printerKasir.alignCenter();
+    printerKasir.println("Terima Kasih");
+    printerKasir.println("Silakan datang kembali");
+    printerKasir.newLine();
+    printerKasir.newLine();
+
+    // --- STRUK DAPUR ---
+    printerDapur.alignCenter();
+    printerDapur.bold(true);
+    printerDapur.println("=== PESANAN DAPUR ===");
+    printerDapur.bold(false);
+    printerDapur.println("--------------------------------");
     
-    printer.leftRight("Metode", data.metode_pembayaran);
-    printer.drawLine();
-
-    // Footer
-    printer.alignCenter();
-    printer.println("Terima Kasih");
-    printer.println("Silakan datang kembali");
+    printerDapur.alignLeft();
+    printerDapur.println(`Kode : ${data.kode_transaksi}`);
+    printerDapur.println(`Jam  : ${new Date(data.tanggal).toLocaleTimeString('id-ID')}`);
+    printerDapur.setTextSize(1, 1);
+    printerDapur.println(`NAMA: ${data.nama_pelanggan.toUpperCase()}`);
+    printerDapur.setTextSize(0, 0);
+    printerDapur.println("--------------------------------");
     
-    // Perintah memotong kertas (jika printer support auto-cutter)
-    // dan menggulung kertas agar mudah disobek
-    printer.newLine();
-    printer.newLine();
-    printer.newLine();
+    printerDapur.bold(true);
+    data.items_detail.forEach((item: any) => {
+      printerDapur.println(`[ ${item.qty} ] x ${item.nama_produk.toUpperCase()}`);
+    });
+    printerDapur.bold(false);
+    
+    printerDapur.println("--------------------------------");
+    printerDapur.alignCenter();
+    printerDapur.println("--- SEGERA DIBUAT ---");
+    printerDapur.newLine();
+    printerDapur.newLine();
 
-    printer.beep(); // Opsional: Bunyi beep setelah selesai
+    // --- EKSEKUSI ---
+    try {
+      await printerKasir.execute();
+      printerKasir.clear();
+      console.log("Struk Kasir Sukses");
+    } catch (err) {
+      console.error("Gagal cetak Kasir:", err);
+    }
 
-    // === EKSEKUSI CETAK (KIRIM KE HARDWARE) ===
-    await printer.execute();
-    printer.clear();
+    try {
+      await printerDapur.execute();
+      printerDapur.clear();
+      console.log("Struk Dapur Sukses");
+    } catch (err) {
+      console.error("Gagal cetak Dapur:", err);
+    }
 
-    return NextResponse.json({ message: "Struk berhasil dicetak!" }, { status: 200 });
+    return NextResponse.json({ message: "Selesai" }, { status: 200 });
+
   } catch (error) {
-    console.error("Gagal mencetak:", error);
-    return NextResponse.json({ error: "Gagal berkomunikasi dengan printer" }, { status: 500 });
+    console.error("Error Sistem Cetak:", error);
+    return NextResponse.json({ error: "Sistem error" }, { status: 500 });
   }
 }
