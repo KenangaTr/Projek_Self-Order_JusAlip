@@ -1,6 +1,47 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Cropper from "react-easy-crop";
+
+// --- HELPER FUNCTION UNTUK MENGAMBIL HASIL CROP ---
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", (error) => reject(error));
+    image.src = url;
+  });
+
+async function getCroppedImg(imageSrc: string, pixelCrop: any): Promise<Blob> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) throw new Error("No 2d context");
+
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) return reject(new Error("Canvas is empty"));
+      resolve(blob);
+    }, "image/jpeg");
+  });
+}
+// -------------------------------------------------
 
 export default function ProductPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -13,37 +54,61 @@ export default function ProductPage() {
   const [isAddMode, setIsAddMode] = useState(false);
   const [newProduct, setNewProduct] = useState({ nama_produk: "", harga: "" });
   
-  // State untuk Gambar
+  // State untuk Upload & Preview
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // State khusus Cropper
+  const [tempImage, setTempImage] = useState<string | null>(null);
+  const [showCropper, setShowCropper] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
   const fetchProducts = async () => {
     try {
       const response = await fetch('/api/products');
       if (response.ok) {
         const data = await response.json();
-        // PERBAIKAN: Cek apakah API merespons dengan format baru (ada allProducts)
-        if (data.allProducts) {
-          setProducts(data.allProducts);
-        } else {
-          setProducts(data);
-        }
+        if (data.allProducts) setProducts(data.allProducts);
+        else setProducts(data);
       }
-    } catch (error) {
-      console.error("Gagal memuat:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { console.error("Gagal memuat:", error); } 
+    finally { setIsLoading(false); }
   };
 
   useEffect(() => { fetchProducts(); }, []);
 
+  // 1. Saat gambar dipilih, masukkan ke Cropper dulu (jangan langsung di-save)
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
-      setImagePreview(URL.createObjectURL(file));
+      setTempImage(URL.createObjectURL(file));
+      setShowCropper(true);
+      // Reset Input agar bisa milih file yang sama lagi jika batal
+      if (fileInputRef.current) fileInputRef.current.value = ""; 
+    }
+  };
+
+  const onCropComplete = (croppedArea: any, croppedAreaPixels: any) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  // 2. Saat user klik "Simpan Potongan"
+  const handleSaveCrop = async () => {
+    if (!tempImage || !croppedAreaPixels) return;
+    try {
+      const croppedBlob = await getCroppedImg(tempImage, croppedAreaPixels);
+      const file = new File([croppedBlob], "cropped-image.jpg", { type: "image/jpeg" });
+      
+      setImageFile(file); // Ini yang akan dikirim ke server
+      setImagePreview(URL.createObjectURL(file)); // Ini yang ditampilkan di form
+      setShowCropper(false);
+      setTempImage(null);
+    } catch (e) {
+      console.error(e);
+      alert("Gagal memotong gambar");
     }
   };
 
@@ -54,6 +119,7 @@ export default function ProductPage() {
     setEditingProduct(null);
     setImageFile(null);
     setImagePreview(null);
+    setShowCropper(false);
   };
 
   // --- FUNGSI TAMBAH ---
@@ -78,24 +144,23 @@ export default function ProductPage() {
   // --- FUNGSI UBAH (EDIT) ---
   const handleEditClick = (product: any) => {
     setEditingProduct(product);
-    setImagePreview(product.gambar || null); // Load gambar lama ke kotak preview
-    setImageFile(null); // Kosongkan file upload baru
+    setImagePreview(product.gambar || null); 
+    setImageFile(null); 
     setIsEditMode(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editingProduct.nama_produk || !editingProduct.harga) return alert("Nama dan Harga harus diisi!");
     
-    // Gunakan FormData, bukan JSON, agar bisa kirim gambar
     const formData = new FormData();
     formData.append('nama_produk', editingProduct.nama_produk);
     formData.append('harga', editingProduct.harga);
-    if (imageFile) formData.append('gambar', imageFile); // Jika ada gambar baru, masukkan!
+    if (imageFile) formData.append('gambar', imageFile); 
 
     try {
       const res = await fetch(`/api/products/${editingProduct.id_produk}`, {
         method: 'PUT',
-        body: formData // Fetch otomatis mendeteksi ini sebagai multipart/form-data
+        body: formData 
       });
 
       if (res.ok) {
@@ -135,7 +200,7 @@ export default function ProductPage() {
   if (isLoading) return <div className="p-10 text-center font-bold text-gray-500">Memuat data dari database...</div>;
 
   // ==========================================
-  // TAMPILAN: FORM EDIT & TAMBAH (Digabung secara pintar)
+  // TAMPILAN: FORM EDIT & TAMBAH
   // ==========================================
   if (isAddMode || isEditMode) {
     const isEdit = isEditMode;
@@ -144,7 +209,7 @@ export default function ProductPage() {
     const handleSave = isEdit ? handleSaveEdit : handleSaveAdd;
 
     return (
-      <div className="max-w-4xl mx-auto text-[#061e12]">
+      <div className="max-w-4xl mx-auto text-[#061e12] relative">
         <div className="flex items-center gap-4 mb-6">
           <button onClick={handleCloseModal} className="text-3xl font-bold hover:text-gray-500 transition">←</button>
           <h1 className="text-2xl font-extrabold tracking-wide">{isEdit ? "Informasi Produk" : "Tambah Produk Baru"}</h1>
@@ -152,14 +217,14 @@ export default function ProductPage() {
 
         <div className="bg-[#f4f5f4] rounded-[2rem] p-8 md:p-12 shadow-sm border border-gray-200">
           <div className="mb-8">
-            <label className="block text-sm font-extrabold mb-3">Foto Produk</label>
+            <label className="block text-sm font-extrabold mb-3">Foto Produk (Rasio 1:1)</label>
             <div className="flex gap-4">
-              <div className="w-24 h-24 bg-[#a1c49b] rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-inner overflow-hidden relative">
+              <div className="w-24 h-24 bg-[#a1c49b] rounded-xl flex items-center justify-center text-xs font-bold text-white shadow-inner overflow-hidden relative border border-gray-300">
                 {imagePreview ? <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" /> : "Kosong"}
               </div>
               <button onClick={() => fileInputRef.current?.click()} className="w-24 h-24 bg-[#e6e8e5] border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 hover:bg-gray-200 transition">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 mb-1"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>
-                <span className="text-[10px] font-bold">{isEdit ? "Ubah poto" : "Tambahkan poto"}</span>
+                <span className="text-2xl mb-1">+</span>
+                <span className="text-[10px] font-bold">Pilih Foto</span>
               </button>
               <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/*" className="hidden" />
             </div>
@@ -184,12 +249,44 @@ export default function ProductPage() {
             <button onClick={handleCloseModal} className="bg-[#567261] text-white px-8 py-2 rounded-full font-bold shadow-md">Batal</button>
           </div>
         </div>
+
+        {/* --- MODAL CROPPER --- */}
+        {showCropper && tempImage && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-white p-6 rounded-[2rem] w-full max-w-md shadow-2xl">
+              <h3 className="font-extrabold text-xl text-center mb-2">Sesuaikan Potongan</h3>
+              <p className="text-xs text-gray-500 text-center mb-6">Geser dan zoom gambar agar pas di dalam kotak 1:1</p>
+              
+              <div className="relative w-full h-72 bg-gray-100 rounded-2xl overflow-hidden mb-6 border border-gray-200">
+                <Cropper
+                  image={tempImage}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1} // MEMAKSA RASIO KOTAK 1:1
+                  onCropChange={setCrop}
+                  onCropComplete={onCropComplete}
+                  onZoomChange={setZoom}
+                />
+              </div>
+              
+              <div className="mb-6">
+                <label className="text-xs font-bold text-gray-500 mb-2 block">Zoom:</label>
+                <input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(Number(e.target.value))} className="w-full accent-[#567261]" />
+              </div>
+
+              <div className="flex gap-4 w-full">
+                <button onClick={() => setShowCropper(false)} className="flex-1 py-3 rounded-full bg-gray-100 text-gray-600 font-bold hover:bg-gray-200 transition">Batal</button>
+                <button onClick={handleSaveCrop} className="flex-1 py-3 rounded-full bg-[#567261] text-white font-bold shadow-md hover:bg-[#435a4c] transition">Simpan Potongan</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // ==========================================
-  // TAMPILAN UTAMA: TABEL
+  // TAMPILAN UTAMA: TABEL (Tidak berubah)
   // ==========================================
   return (
     <div className="max-w-6xl mx-auto">
@@ -217,7 +314,7 @@ export default function ProductPage() {
               <tr key={product.id_produk} className="border-b border-gray-50 hover:bg-gray-50">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-gray-200 rounded-xl flex items-center justify-center text-[10px] text-gray-400 font-bold overflow-hidden">
+                    <div className="w-14 h-14 bg-gray-200 rounded-xl flex items-center justify-center text-[10px] text-gray-400 font-bold overflow-hidden aspect-square">
                       {product.gambar ? <img src={product.gambar} alt={product.nama_produk} className="w-full h-full object-cover" /> : "IMG"}
                     </div>
                     <div>

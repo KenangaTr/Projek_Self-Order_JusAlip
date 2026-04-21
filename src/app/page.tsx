@@ -321,6 +321,7 @@ export default function KioskPage() {
 }
 
 // --- KOMPONEN CETAKAN KARTU PRODUK ---
+// --- KOMPONEN CETAKAN KARTU PRODUK ---
 function ProductCard({ product, qty, onAdd, onRemove, isBest }: any) {
   return (
     <div className={`bg-white rounded-2xl p-3 flex flex-col items-center shadow-lg transition transform hover:-translate-y-2 relative group ${isBest ? 'ring-4 ring-[#c2aa6b]/30 shadow-[#c2aa6b]/20' : ''}`}>
@@ -331,8 +332,13 @@ function ProductCard({ product, qty, onAdd, onRemove, isBest }: any) {
         </div>
       )}
 
-      <div className="w-full h-36 bg-gray-50 rounded-xl mb-4 flex items-center justify-center text-gray-300 text-xs overflow-hidden relative border border-gray-100 group-hover:border-[#c2aa6b]/50 transition">
-        {product.gambar ? <img src={product.gambar} alt={product.nama_produk} className="w-full h-full object-cover transition transform group-hover:scale-110 duration-500" /> : "No Image"}
+      {/* PERUBAHAN: Gunakan 'aspect-square' agar kotak sempurna 1:1 */}
+      <div className="w-full aspect-square bg-gray-50 rounded-xl mb-4 flex items-center justify-center text-gray-300 text-xs overflow-hidden relative border border-gray-100 group-hover:border-[#c2aa6b]/50 transition">
+        {product.gambar ? (
+          <img src={product.gambar} alt={product.nama_produk} className="w-full h-full object-cover transition transform group-hover:scale-110 duration-500" />
+        ) : (
+          "No Image"
+        )}
       </div>
       
       <h3 className="text-[#061e12] text-sm font-bold mb-1 text-center line-clamp-1 w-full px-1">{product.nama_produk}</h3>

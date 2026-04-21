@@ -21,8 +21,8 @@ export async function POST(request: Request) {
     
     printer.bold(false);
     printer.setTextNormal();
-    printer.println("Jl. Siliwangi Tasikmalaya");
-    printer.println("Telp: 0812-3456-7890");
+    printer.println("Jl. Puspa Indah 1");
+    printer.println("Telp: 0821-2103-3062");
     printer.drawLine(); // Garis putus-putus
     
     printer.alignLeft();
