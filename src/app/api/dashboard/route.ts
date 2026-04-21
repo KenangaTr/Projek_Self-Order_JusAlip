@@ -54,45 +54,74 @@ export async function GET(request: Request) {
     }));
 
     // ==========================================
-    // LOGIKA BARU: MENGISI PENUH TIMELINE GRAFIK 
+    // LOGIKA UPDATE: MENGHITUNG TOTAL, TRANSAKSI, & ITEMS
     // ==========================================
+    // Ambil data transaksi beserta isinya (items) untuk menghitung cup jus
     const recentTrx = await prisma.transaksi.findMany({
-      where: dateFilter, orderBy: { tanggal: 'asc' }
+      where: dateFilter, 
+      orderBy: { tanggal: 'asc' },
+      include: {
+        items: true // <-- Penting: Ikut sertakan keranjang belanjanya
+      }
     });
 
     const trendMap = new Map();
 
     if (filter === 'today' || filter === 'yesterday') {
-      // 1. Siapkan 24 Jam Penuh (00:00 - 23:00) dengan nilai 0
+      // 1. Siapkan 24 Jam Penuh
       for (let i = 0; i < 24; i++) {
         const hour = `${i.toString().padStart(2, '0')}:00`;
-        trendMap.set(hour, 0);
+        // Inisialisasi 3 metrik dengan angka 0
+        trendMap.set(hour, { total: 0, transactions: 0, items: 0 });
       }
-      // 2. Isi timeline dengan data transaksi asli (jika ada)
+      
+      // 2. Isi timeline dengan data
       recentTrx.forEach(trx => {
         const hour = `${new Date(trx.tanggal).getHours().toString().padStart(2, '0')}:00`;
         if (trendMap.has(hour)) {
-          trendMap.set(hour, trendMap.get(hour) + Number(trx.total_harga));
+          const currentData = trendMap.get(hour);
+          const totalCupDiTransaksiIni = trx.items.reduce((sum: number, item: any) => sum + item.jumlah, 0);
+
+          trendMap.set(hour, {
+            total: currentData.total + Number(trx.total_harga), // Uang masuk
+            transactions: currentData.transactions + 1,         // Struk tercetak
+            items: currentData.items + totalCupDiTransaksiIni   // Cup terjual
+          });
         }
       });
     } else {
-      // 1. Siapkan Tanggal Penuh (7 atau 30 Hari berurutan) dengan nilai 0
+      // 1. Siapkan Tanggal Penuh
       for (let i = 0; i < daysCount; i++) {
         const loopDate = new Date(startDate);
         loopDate.setDate(loopDate.getDate() + i);
         const dateLabel = loopDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        trendMap.set(dateLabel, 0);
+        // Inisialisasi 3 metrik dengan angka 0
+        trendMap.set(dateLabel, { total: 0, transactions: 0, items: 0 });
       }
-      // 2. Isi timeline dengan data transaksi asli (jika ada)
+      
+      // 2. Isi timeline dengan data
       recentTrx.forEach(trx => {
         const dateLabel = new Date(trx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         if (trendMap.has(dateLabel)) {
-          trendMap.set(dateLabel, trendMap.get(dateLabel) + Number(trx.total_harga));
+          const currentData = trendMap.get(dateLabel);
+          const totalCupDiTransaksiIni = trx.items.reduce((sum: number, item: any) => sum + item.jumlah, 0);
+
+          trendMap.set(dateLabel, {
+            total: currentData.total + Number(trx.total_harga), // Uang masuk
+            transactions: currentData.transactions + 1,         // Struk tercetak
+            items: currentData.items + totalCupDiTransaksiIni   // Cup terjual
+          });
         }
       });
     }
 
-    const trendPendapatan = Array.from(trendMap, ([date, total]) => ({ date, total }));
+    // Format hasil akhirnya agar siap dibaca oleh Recharts di Frontend
+    const trendPendapatan = Array.from(trendMap, ([date, data]) => ({ 
+      date, 
+      total: data.total,
+      transactions: data.transactions,
+      items: data.items
+    }));
     // ==========================================
 
     // --- DATA PIE CHART & TABEL ---

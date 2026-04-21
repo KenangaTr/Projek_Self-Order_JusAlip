@@ -10,6 +10,10 @@ const COLORS = ['#c2aa6b', '#567261', '#123524', '#e9ece6'];
 
 export default function DashboardPage() {
   const [timeFilter, setTimeFilter] = useState('30days');
+  
+  // === 1. STATE BARU UNTUK METRIK AKTIF ===
+  const [activeMetric, setActiveMetric] = useState<'revenue' | 'transactions' | 'items'>('revenue');
+
   const [stats, setStats] = useState<any>({
     totalTransaksi: 0, totalPendapatan: 0, totalItemTerjual: 0,
     grafikPenjualan: [], trendPendapatan: [], grafikMetode: [], transaksiTerbaru: []
@@ -18,11 +22,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      // Panggil API untuk menghapus cookie
       const res = await fetch('/api/auth/logout', { method: 'POST' });
-      
       if (res.ok) {
-        // Hard redirect ke halaman utama (Kiosk) & bersihkan cache browser
         window.location.href = '/'; 
       }
     } catch (error) {
@@ -46,7 +47,6 @@ export default function DashboardPage() {
     fetchDashboardData();
   }, [timeFilter]);
 
-  // === FUNGSI BARU: MENGHITUNG TEKS TANGGAL UNTUK SUB-JUDUL ===
   const getDateRangeLabel = () => {
     const now = new Date();
     const optionsFull: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -55,27 +55,50 @@ export default function DashboardPage() {
     if (timeFilter === 'today') {
       return now.toLocaleDateString('id-ID', optionsFull);
     }
-    
     if (timeFilter === 'yesterday') {
       const yesterday = new Date();
       yesterday.setDate(now.getDate() - 1);
       return yesterday.toLocaleDateString('id-ID', optionsFull);
     }
-    
     if (timeFilter === '7days') {
       const start = new Date();
       start.setDate(now.getDate() - 6);
       return `${start.toLocaleDateString('id-ID', optionsShort)} - ${now.toLocaleDateString('id-ID', optionsFull)}`;
     }
-    
     if (timeFilter === '30days') {
       const start = new Date();
       start.setDate(now.getDate() - 29);
       return `${start.toLocaleDateString('id-ID', optionsShort)} - ${now.toLocaleDateString('id-ID', optionsFull)}`;
     }
-    
     return '';
   };
+
+  // === 2. KONFIGURASI DINAMIS UNTUK GRAFIK ===
+  const chartConfig = {
+    revenue: {
+      title: "📈 Tren Pendapatan",
+      dataKey: "total", 
+      color: "#567261",
+      formatter: (val: any) => [`Rp ${Number(val).toLocaleString('id-ID')}`, 'Pendapatan'],
+      yAxisFormatter: (val: any) => `Rp${val/1000}k`
+    },
+    transactions: {
+      title: "📉 Tren Total Transaksi",
+      dataKey: "transactions", 
+      color: "#c2aa6b",
+      formatter: (val: any) => [`${val} Transaksi`, 'Total Transaksi'],
+      yAxisFormatter: (val: any) => val
+    },
+    items: {
+      title: "📊 Tren Jus Terjual",
+      dataKey: "items", 
+      color: "#b54a4a",
+      formatter: (val: any) => [`${val} Cup`, 'Jus Terjual'],
+      yAxisFormatter: (val: any) => val
+    }
+  };
+
+  const activeChart = chartConfig[activeMetric];
 
   if (isLoading && stats.totalTransaksi === 0) return <div className="p-10 text-center font-bold text-gray-500 animate-pulse">Menyiapkan Dashboard...</div>;
 
@@ -88,32 +111,62 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 1. KOTAK RINGKASAN */}
+      {/* 3. KOTAK RINGKASAN (Dibuat Clickable) */}
       <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-          <div><p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Total Transaksi</p><h2 className="text-4xl font-black text-[#061e12]">{stats.totalTransaksi}</h2></div>
-          <div className="w-12 h-12 bg-[#e9ece6] rounded-full flex items-center justify-center text-[#567261] text-xl font-black">🧾</div>
+        
+        {/* Kartu: Total Transaksi */}
+        <div 
+          onClick={() => setActiveMetric('transactions')}
+          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'transactions' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'transactions' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Total Transaksi</p>
+              <h2 className={`text-4xl font-black ${activeMetric === 'transactions' ? 'text-white' : 'text-[#061e12]'}`}>{stats.totalTransaksi}</h2>
+            </div>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black ${activeMetric === 'transactions' ? 'bg-[#2a4d3c] text-[#c2aa6b]' : 'bg-[#e9ece6] text-[#567261]'}`}>🧾</div>
+          </div>
         </div>
-        <div className="bg-[#123524] rounded-2xl p-6 shadow-lg border border-[#163d27] flex items-center justify-between text-white transform hover:scale-[1.02] transition">
-          <div><p className="text-xs text-[#c2aa6b] font-bold mb-1 uppercase tracking-wider">Total Pendapatan</p><h2 className="text-3xl lg:text-4xl font-black">Rp{Number(stats.totalPendapatan).toLocaleString('id-ID')}</h2></div>
-          <div className="w-12 h-12 bg-[#2a4d3c] rounded-full flex items-center justify-center text-[#c2aa6b] text-xl font-black">💰</div>
+
+        {/* Kartu: Total Pendapatan */}
+        <div 
+          onClick={() => setActiveMetric('revenue')}
+          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'revenue' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'revenue' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Total Pendapatan</p>
+              <h2 className={`text-3xl lg:text-4xl font-black ${activeMetric === 'revenue' ? 'text-white' : 'text-[#061e12]'}`}>Rp{Number(stats.totalPendapatan).toLocaleString('id-ID')}</h2>
+            </div>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black ${activeMetric === 'revenue' ? 'bg-[#2a4d3c] text-[#c2aa6b]' : 'bg-[#e9ece6] text-[#567261]'}`}>💰</div>
+          </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-between">
-          <div><p className="text-xs text-gray-400 font-bold mb-1 uppercase tracking-wider">Jus Terjual</p><h2 className="text-4xl font-black text-[#061e12]">{stats.totalItemTerjual} <span className="text-lg">Cup</span></h2></div>
-          <div className="w-12 h-12 bg-[#e9ece6] rounded-full flex items-center justify-center text-[#567261] text-xl font-black">🥤</div>
+
+        {/* Kartu: Jus Terjual */}
+        <div 
+          onClick={() => setActiveMetric('items')}
+          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'items' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'items' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Jus Terjual</p>
+              <h2 className={`text-4xl font-black ${activeMetric === 'items' ? 'text-white' : 'text-[#061e12]'}`}>{stats.totalItemTerjual} <span className="text-lg">Cup</span></h2>
+            </div>
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black ${activeMetric === 'items' ? 'bg-[#2a4d3c] text-[#c2aa6b]' : 'bg-[#e9ece6] text-[#567261]'}`}>🥤</div>
+          </div>
         </div>
+
       </div>
 
-      {/* 2. ROW GRAFIK UTAMA */}
+      {/* 4. ROW GRAFIK UTAMA */}
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         
-        {/* Trend Garis */}
+        {/* Trend Garis Dinamis */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
           
           <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h3 className="font-extrabold text-lg text-[#061e12]">📈 Tren Pendapatan</h3>
-              {/* KETERANGAN TANGGAL DINAMIS */}
+              <h3 className="font-extrabold text-lg text-[#061e12] transition-colors">{activeChart.title}</h3>
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">
                 {getDateRangeLabel()}
               </p>
@@ -133,18 +186,22 @@ export default function DashboardPage() {
                 <LineChart data={stats.trendPendapatan} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                   <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-                  <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} tickFormatter={(value) => `Rp${value/1000}k`} />
+                  
+                  {/* YAxis berubah formatnya sesuai metrik */}
+                  <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} tickFormatter={activeChart.yAxisFormatter} />
+                  
                   <RechartsTooltip 
                     cursor={{stroke: '#e5e7eb', strokeWidth: 2}} 
                     contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
-                    formatter={(value: any) => [`Rp ${Number(value).toLocaleString('id-ID')}`, 'Pendapatan']}
+                    formatter={activeChart.formatter}
                     labelFormatter={(label) => {
                       if (timeFilter === 'today') return `Hari Ini, Pukul ${label}`;
                       if (timeFilter === 'yesterday') return `Kemarin, Pukul ${label}`;
                       return `Tanggal: ${label}`;
                     }}
                   />
-                  <Line type="monotone" dataKey="total" stroke="#567261" strokeWidth={4} dot={{ r: 4, fill: '#c2aa6b', strokeWidth: 2 }} activeDot={{ r: 8 }} />
+                  {/* Garis berubah warna dan datanya sesuai metrik */}
+                  <Line type="monotone" dataKey={activeChart.dataKey} stroke={activeChart.color} strokeWidth={4} dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 8, fill: activeChart.color }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -172,7 +229,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. ROW GRAFIK BAR & TABEL */}
+      {/* 5. ROW GRAFIK BAR & TABEL */}
       <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
           <h3 className="font-extrabold text-lg mb-6 text-[#061e12]">🏆 Top Menu Terlaris</h3>
