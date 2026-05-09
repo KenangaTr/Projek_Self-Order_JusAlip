@@ -10,9 +10,13 @@ const COLORS = ['#c2aa6b', '#567261', '#123524', '#e9ece6'];
 
 export default function DashboardPage() {
   const [timeFilter, setTimeFilter] = useState('30days');
-  
-  // === 1. STATE BARU UNTUK METRIK AKTIF ===
   const [activeMetric, setActiveMetric] = useState<'revenue' | 'transactions' | 'items'>('revenue');
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // === STATE BARU UNTUK MODAL KONFIRMASI HAPUS ===
+  const [transactionToDelete, setTransactionToDelete] = useState<number | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [stats, setStats] = useState<any>({
     totalTransaksi: 0, totalPendapatan: 0, totalItemTerjual: 0,
@@ -32,9 +36,7 @@ export default function DashboardPage() {
     }
   };
   
-  // === MODIFIKASI: SISTEM REAL-TIME (SILENT POLLING) ===
   useEffect(() => {
-    // 1. Tarikan data pertama kali (memunculkan efek transparan/loading)
     const fetchInitialData = async () => {
       setIsLoading(true);
       try {
@@ -47,40 +49,57 @@ export default function DashboardPage() {
       }
     };
 
-    // 2. Tarikan data diam-diam setiap 3 detik (Tanpa memicu loading)
     const fetchSilentData = async () => {
       try {
         const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
         if (response.ok) {
           const newData = await response.json();
-          // Update data terbaru secara mulus
           setStats(newData);
         }
       } catch (error) {
-        // Jika gagal sesaat (misal internet putus sepersekian detik), abaikan agar tidak mengganggu user
         console.error("Gagal update real-time:", error);
       }
     };
 
-    // Eksekusi tarikan pertama
     fetchInitialData();
-
-    // Pasang radar interval (Setiap 3000 ms / 3 detik)
     const intervalId = setInterval(fetchSilentData, 3000);
-
-    // Wajib: Matikan radar jika user pindah halaman agar tidak bocor di memory
     return () => clearInterval(intervalId);
   }, [timeFilter]);
-  // ===================================================
+
+  // === FUNGSI EKSEKUSI HAPUS (DIPANGGIL DARI DALAM MODAL) ===
+  const executeDelete = async () => {
+    if (transactionToDelete === null) return;
+    setIsDeleting(true);
+
+    try {
+      const res = await fetch(`/api/transactions/${transactionToDelete}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        // Hapus dari tampilan secara instan 
+        setStats((prev: any) => ({
+          ...prev,
+          transaksiTerbaru: prev.transaksiTerbaru.filter((trx: any) => trx.id_transaksi !== transactionToDelete)
+        }));
+        setTransactionToDelete(null); // Tutup modal setelah sukses
+      } else {
+        alert("Gagal menghapus transaksi.");
+      }
+    } catch (error) {
+      console.error("Error menghapus:", error);
+      alert("Terjadi kesalahan sistem saat menghapus.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const getDateRangeLabel = () => {
     const now = new Date();
     const optionsFull: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
     const optionsShort: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 
-    if (timeFilter === 'today') {
-      return now.toLocaleDateString('id-ID', optionsFull);
-    }
+    if (timeFilter === 'today') return now.toLocaleDateString('id-ID', optionsFull);
     if (timeFilter === 'yesterday') {
       const yesterday = new Date();
       yesterday.setDate(now.getDate() - 1);
@@ -99,7 +118,6 @@ export default function DashboardPage() {
     return '';
   };
 
-  // === 2. KONFIGURASI DINAMIS UNTUK GRAFIK ===
   const chartConfig = {
     revenue: {
       title: "📈 Tren Pendapatan",
@@ -126,10 +144,15 @@ export default function DashboardPage() {
 
   const activeChart = chartConfig[activeMetric];
 
+  const filteredTransactions = stats.transaksiTerbaru.filter((trx: any) => 
+    trx.kode_transaksi.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    (trx.nama_pelanggan && trx.nama_pelanggan.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
   if (isLoading && stats.totalTransaksi === 0) return <div className="p-10 text-center font-bold text-gray-500 animate-pulse">Menyiapkan Dashboard...</div>;
 
   return (
-    <div className="max-w-7xl mx-auto pb-12">
+    <div className="max-w-7xl mx-auto pb-12 relative">
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-3xl font-extrabold text-[#061e12] mb-2">Dashboard Analytics</h1>
@@ -137,10 +160,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. KOTAK RINGKASAN (Dibuat Clickable) */}
       <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-        
-        {/* Kartu: Total Transaksi */}
         <div 
           onClick={() => setActiveMetric('transactions')}
           className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'transactions' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
@@ -154,7 +174,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Kartu: Total Pendapatan */}
         <div 
           onClick={() => setActiveMetric('revenue')}
           className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'revenue' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
@@ -168,7 +187,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Kartu: Jus Terjual */}
         <div 
           onClick={() => setActiveMetric('items')}
           className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'items' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
@@ -181,15 +199,10 @@ export default function DashboardPage() {
             <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl font-black ${activeMetric === 'items' ? 'bg-[#2a4d3c] text-[#c2aa6b]' : 'bg-[#e9ece6] text-[#567261]'}`}>🥤</div>
           </div>
         </div>
-
       </div>
 
-      {/* 4. ROW GRAFIK UTAMA */}
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-        
-        {/* Trend Garis Dinamis */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-          
           <div className="p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h3 className="font-extrabold text-lg text-[#061e12] transition-colors">{activeChart.title}</h3>
@@ -197,7 +210,6 @@ export default function DashboardPage() {
                 {getDateRangeLabel()}
               </p>
             </div>
-            
             <div className="flex bg-[#e9ece6] p-1 rounded-lg">
               <button onClick={() => setTimeFilter('today')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'today' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Hari Ini</button>
               <button onClick={() => setTimeFilter('yesterday')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'yesterday' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Kemarin</button>
@@ -212,10 +224,7 @@ export default function DashboardPage() {
                 <LineChart data={stats.trendPendapatan} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                   <XAxis dataKey="date" tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} />
-                  
-                  {/* YAxis berubah formatnya sesuai metrik */}
                   <YAxis tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} axisLine={false} tickLine={false} tickFormatter={activeChart.yAxisFormatter} />
-                  
                   <RechartsTooltip 
                     cursor={{stroke: '#e5e7eb', strokeWidth: 2}} 
                     contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} 
@@ -226,7 +235,6 @@ export default function DashboardPage() {
                       return `Tanggal: ${label}`;
                     }}
                   />
-                  {/* Garis berubah warna dan datanya sesuai metrik */}
                   <Line type="monotone" dataKey={activeChart.dataKey} stroke={activeChart.color} strokeWidth={4} dot={{ r: 4, fill: '#fff', strokeWidth: 2 }} activeDot={{ r: 8, fill: activeChart.color }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -236,7 +244,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Pie Chart */}
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col items-center">
           <h3 className="font-extrabold text-lg mb-2 text-[#061e12] w-full text-left">💳 Metode Pembayaran</h3>
           <div className="flex-1 w-full min-h-[250px]">
@@ -255,7 +262,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 5. ROW GRAFIK BAR & TABEL */}
       <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
         <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col">
           <h3 className="font-extrabold text-lg mb-6 text-[#061e12]">🏆 Top Menu Terlaris</h3>
@@ -277,32 +283,71 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-            <h3 className="font-extrabold text-lg text-[#061e12]">🕒 Transaksi Terbaru</h3>
-            <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full animate-pulse">Live</span>
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-extrabold text-lg text-[#061e12]">🕒 Transaksi Terbaru</h3>
+              <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full animate-pulse">Live</span>
+            </div>
+            <input 
+              type="text" 
+              placeholder="🔍 Cari Kode TRX / Nama..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-gray-50 border border-gray-200 text-sm rounded-lg px-4 py-2 outline-none focus:border-[#c2aa6b] focus:ring-1 focus:ring-[#c2aa6b] transition w-full sm:w-64 font-medium text-[#061e12]"
+            />
           </div>
+
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4 font-bold">Kode</th>
-                  <th className="px-6 py-4 font-bold">Pelanggan</th>
+                  <th className="px-6 py-4 font-bold">Waktu</th>
+                  <th className="px-6 py-4 font-bold">Kode & Nama</th>
                   <th className="px-6 py-4 font-bold">Total</th>
-                  <th className="px-6 py-4 font-bold">Status</th>
+                  <th className="px-6 py-4 font-bold text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {stats.transaksiTerbaru.length === 0 ? (
-                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 font-bold">Belum ada transaksi.</td></tr>
+                {filteredTransactions.length === 0 ? (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-gray-400 font-bold">Tidak ada transaksi ditemukan.</td></tr>
                 ) : (
-                  stats.transaksiTerbaru.map((trx: any) => (
-                    <tr key={trx.id_transaksi} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4 font-bold text-xs text-gray-500">{trx.kode_transaksi}</td>
-                      <td className="px-6 py-4 font-bold text-sm text-[#061e12]">{trx.nama_pelanggan}</td>
-                      <td className="px-6 py-4 font-black text-[#567261]">Rp{Number(trx.total_harga).toLocaleString('id-ID')}</td>
+                  filteredTransactions.map((trx: any) => (
+                    <tr key={trx.id_transaksi} className="hover:bg-gray-50 transition group">
+                      
                       <td className="px-6 py-4">
-                        <span className="bg-[#e9ece6] text-[#061e12] text-[10px] font-black px-2 py-1 rounded-md">{trx.metode_pembayaran}</span>
+                        <div className="text-xs font-bold text-[#061e12]">
+                          {new Date(trx.tanggal).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                        <div className="text-[10px] text-gray-400 font-bold mt-1">
+                          {new Date(trx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                        </div>
                       </td>
+
+                      <td className="px-6 py-4">
+                        <div className="font-black text-xs text-[#c2aa6b] mb-1">{trx.kode_transaksi}</div>
+                        <div className="font-bold text-sm text-[#061e12]">{trx.nama_pelanggan || "Pelanggan"}</div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <div className="font-black text-[#567261]">Rp{Number(trx.total_harga).toLocaleString('id-ID')}</div>
+                        <div className="bg-[#e9ece6] text-[#061e12] text-[9px] font-black px-2 py-0.5 rounded uppercase w-max mt-1">
+                          {trx.metode_pembayaran}
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4 text-center">
+                        <button 
+                          // KETIKA DIKLIK, MUNCULKAN MODAL
+                          onClick={() => setTransactionToDelete(trx.id_transaksi)}
+                          className="text-red-400 bg-red-50 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-colors opacity-50 group-hover:opacity-100"
+                          title="Hapus Transaksi"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                          </svg>
+                        </button>
+                      </td>
+
                     </tr>
                   ))
                 )}
@@ -311,6 +356,42 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* === MODAL KONFIRMASI HAPUS (MUNCUL JIKA ADA TRANSAKSI YANG DIPILIH) === */}
+      {transactionToDelete !== null && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-[scale-up_0.2s_ease-out]">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-5">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z" />
+              </svg>
+            </div>
+            
+            <h3 className="text-2xl font-black text-center text-[#061e12] mb-3">Batalkan Transaksi?</h3>
+            <p className="text-center text-gray-500 text-sm font-medium mb-8 leading-relaxed">
+              Anda yakin ingin menghapus transaksi ini? Data pada laporan pendapatan dan jumlah cup terjual akan otomatis dikurangi. <br/> <strong className="text-red-500">Tindakan ini tidak bisa dibatalkan.</strong>
+            </p>
+            
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setTransactionToDelete(null)}
+                className="flex-1 bg-gray-100 text-gray-500 font-bold py-3 rounded-xl hover:bg-gray-200 transition"
+                disabled={isDeleting}
+              >
+                Kembali
+              </button>
+              <button 
+                onClick={executeDelete}
+                className="flex-1 bg-[#b54a4a] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-900/20"
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Menghapus..." : "Ya, Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

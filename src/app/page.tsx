@@ -405,7 +405,7 @@ export default function KioskPage() {
 
                         {!isQrisLoading && qrisUrl && (
                           <button onClick={handleSimulateWebhook} className="mt-6 bg-[#c2aa6b] text-[#061e12] text-xs font-bold px-8 py-3 rounded-full shadow-md hover:scale-105 transition w-[90%]">
-                            (Dev) Tembak Sinyal Webhook!
+                            Cek Pembayaran
                           </button>
                         )}
                       </div>
