@@ -56,7 +56,6 @@ export async function GET(request: Request) {
     // ==========================================
     // LOGIKA UPDATE: MENGHITUNG TOTAL, TRANSAKSI, & ITEMS
     // ==========================================
-    // Ambil data transaksi beserta isinya (items) untuk menghitung cup jus
     const recentTrx = await prisma.transaksi.findMany({
       where: dateFilter, 
       orderBy: { tanggal: 'asc' },
@@ -71,7 +70,6 @@ export async function GET(request: Request) {
       // 1. Siapkan 24 Jam Penuh
       for (let i = 0; i < 24; i++) {
         const hour = `${i.toString().padStart(2, '0')}:00`;
-        // Inisialisasi 3 metrik dengan angka 0
         trendMap.set(hour, { total: 0, transactions: 0, items: 0 });
       }
       
@@ -83,9 +81,9 @@ export async function GET(request: Request) {
           const totalCupDiTransaksiIni = trx.items.reduce((sum: number, item: any) => sum + item.jumlah, 0);
 
           trendMap.set(hour, {
-            total: currentData.total + Number(trx.total_harga), // Uang masuk
-            transactions: currentData.transactions + 1,         // Struk tercetak
-            items: currentData.items + totalCupDiTransaksiIni   // Cup terjual
+            total: currentData.total + Number(trx.total_harga),
+            transactions: currentData.transactions + 1,
+            items: currentData.items + totalCupDiTransaksiIni
           });
         }
       });
@@ -95,7 +93,6 @@ export async function GET(request: Request) {
         const loopDate = new Date(startDate);
         loopDate.setDate(loopDate.getDate() + i);
         const dateLabel = loopDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-        // Inisialisasi 3 metrik dengan angka 0
         trendMap.set(dateLabel, { total: 0, transactions: 0, items: 0 });
       }
       
@@ -107,9 +104,9 @@ export async function GET(request: Request) {
           const totalCupDiTransaksiIni = trx.items.reduce((sum: number, item: any) => sum + item.jumlah, 0);
 
           trendMap.set(dateLabel, {
-            total: currentData.total + Number(trx.total_harga), // Uang masuk
-            transactions: currentData.transactions + 1,         // Struk tercetak
-            items: currentData.items + totalCupDiTransaksiIni   // Cup terjual
+            total: currentData.total + Number(trx.total_harga),
+            transactions: currentData.transactions + 1,
+            items: currentData.items + totalCupDiTransaksiIni
           });
         }
       });
@@ -132,8 +129,10 @@ export async function GET(request: Request) {
       name: m.metode_pembayaran, value: m._count._all
     }));
 
+    // PERUBAHAN DI SINI: take: 5 dihapus!
     const transaksiTerbaru = await prisma.transaksi.findMany({
-      where: dateFilter, take: 5, orderBy: { tanggal: 'desc' }
+      where: dateFilter, 
+      orderBy: { tanggal: 'desc' } // Tetap diurutkan dari yang paling baru
     });
 
     return NextResponse.json({

@@ -14,7 +14,6 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
 
-  // === STATE BARU UNTUK MODAL KONFIRMASI HAPUS ===
   const [transactionToDelete, setTransactionToDelete] = useState<number | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -66,7 +65,6 @@ export default function DashboardPage() {
     return () => clearInterval(intervalId);
   }, [timeFilter]);
 
-  // === FUNGSI EKSEKUSI HAPUS (DIPANGGIL DARI DALAM MODAL) ===
   const executeDelete = async () => {
     if (transactionToDelete === null) return;
     setIsDeleting(true);
@@ -77,12 +75,11 @@ export default function DashboardPage() {
       });
 
       if (res.ok) {
-        // Hapus dari tampilan secara instan 
         setStats((prev: any) => ({
           ...prev,
           transaksiTerbaru: prev.transaksiTerbaru.filter((trx: any) => trx.id_transaksi !== transactionToDelete)
         }));
-        setTransactionToDelete(null); // Tutup modal setelah sukses
+        setTransactionToDelete(null); 
       } else {
         alert("Gagal menghapus transaksi.");
       }
@@ -283,9 +280,9 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="p-6 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white z-20">
             <div className="flex items-center gap-3">
-              <h3 className="font-extrabold text-lg text-[#061e12]">🕒 Transaksi Terbaru</h3>
+              <h3 className="font-extrabold text-lg text-[#061e12]">🕒 Transaksi</h3>
               <span className="bg-green-100 text-green-700 text-xs font-bold px-3 py-1 rounded-full animate-pulse">Live</span>
             </div>
             <input 
@@ -297,14 +294,16 @@ export default function DashboardPage() {
             />
           </div>
 
-          <div className="overflow-x-auto">
+          {/* PERUBAHAN DI SINI: MENAMBAHKAN EFEK SCROLL KE BAWAH */}
+          <div className="overflow-x-auto overflow-y-auto max-h-[400px] relative">
             <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                  <th className="px-6 py-4 font-bold">Waktu</th>
-                  <th className="px-6 py-4 font-bold">Kode & Nama</th>
-                  <th className="px-6 py-4 font-bold">Total</th>
-                  <th className="px-6 py-4 font-bold text-center">Aksi</th>
+              {/* thead dibuat sticky agar tidak ikut ter-scroll */}
+              <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
+                <tr className="text-gray-500 text-xs uppercase tracking-wider">
+                  <th className="px-6 py-4 font-bold bg-gray-50">Waktu</th>
+                  <th className="px-6 py-4 font-bold bg-gray-50">Kode & Nama</th>
+                  <th className="px-6 py-4 font-bold bg-gray-50">Total</th>
+                  <th className="px-6 py-4 font-bold text-center bg-gray-50">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -337,7 +336,6 @@ export default function DashboardPage() {
 
                       <td className="px-6 py-4 text-center">
                         <button 
-                          // KETIKA DIKLIK, MUNCULKAN MODAL
                           onClick={() => setTransactionToDelete(trx.id_transaksi)}
                           className="text-red-400 bg-red-50 hover:bg-red-500 hover:text-white p-2 rounded-lg transition-colors opacity-50 group-hover:opacity-100"
                           title="Hapus Transaksi"
@@ -357,7 +355,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* === MODAL KONFIRMASI HAPUS (MUNCUL JIKA ADA TRANSAKSI YANG DIPILIH) === */}
       {transactionToDelete !== null && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl animate-[scale-up_0.2s_ease-out]">
