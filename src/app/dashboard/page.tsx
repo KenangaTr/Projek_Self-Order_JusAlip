@@ -32,8 +32,10 @@ export default function DashboardPage() {
     }
   };
   
+  // === MODIFIKASI: SISTEM REAL-TIME (SILENT POLLING) ===
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    // 1. Tarikan data pertama kali (memunculkan efek transparan/loading)
+    const fetchInitialData = async () => {
       setIsLoading(true);
       try {
         const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
@@ -44,8 +46,32 @@ export default function DashboardPage() {
         setIsLoading(false);
       }
     };
-    fetchDashboardData();
+
+    // 2. Tarikan data diam-diam setiap 3 detik (Tanpa memicu loading)
+    const fetchSilentData = async () => {
+      try {
+        const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
+        if (response.ok) {
+          const newData = await response.json();
+          // Update data terbaru secara mulus
+          setStats(newData);
+        }
+      } catch (error) {
+        // Jika gagal sesaat (misal internet putus sepersekian detik), abaikan agar tidak mengganggu user
+        console.error("Gagal update real-time:", error);
+      }
+    };
+
+    // Eksekusi tarikan pertama
+    fetchInitialData();
+
+    // Pasang radar interval (Setiap 3000 ms / 3 detik)
+    const intervalId = setInterval(fetchSilentData, 3000);
+
+    // Wajib: Matikan radar jika user pindah halaman agar tidak bocor di memory
+    return () => clearInterval(intervalId);
   }, [timeFilter]);
+  // ===================================================
 
   const getDateRangeLabel = () => {
     const now = new Date();

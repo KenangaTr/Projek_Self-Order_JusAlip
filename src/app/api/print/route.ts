@@ -5,11 +5,13 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
+    // PENAMBAHAN 'width: 32' AGAR PAS DENGAN KERTAS 58MM
     const printerKasir = new ThermalPrinter({
       type: PrinterTypes.EPSON,
       interface: '//localhost/ALGOO_KASIR',
       characterSet: CharacterSet.PC852_LATIN2,
       removeSpecialCharacters: false,
+      width: 32, // <--- Ini kunci utamanya!
     });
 
     const printerDapur = new ThermalPrinter({
@@ -17,6 +19,7 @@ export async function POST(request: Request) {
       interface: '//localhost/ALGOO_DAPUR',
       characterSet: CharacterSet.PC852_LATIN2,
       removeSpecialCharacters: false,
+      width: 32, // <--- Ini juga
     });
 
     // --- STRUK KASIR ---
@@ -30,23 +33,39 @@ export async function POST(request: Request) {
     printerKasir.println("Telp: 0812-3456-7890");
     printerKasir.println("--------------------------------");
     
+    // --- CETAK NOMOR ANTREAN KASIR ---
+    printerKasir.newLine();
+    printerKasir.alignCenter();
+    printerKasir.bold(true);
+    printerKasir.setTextSize(2, 2); 
+    printerKasir.println(`No. ${data.nomor_antrian}`);
+    printerKasir.setTextSize(0, 0); 
+    printerKasir.bold(false);
+    printerKasir.newLine();
+    printerKasir.println("--------------------------------");
+    // ---------------------------------
+
     printerKasir.alignLeft();
     printerKasir.println(`Kode : ${data.kode_transaksi}`);
     printerKasir.println(`Tgl  : ${new Date(data.tanggal).toLocaleString('id-ID')}`);
     printerKasir.println(`Nama : ${data.nama_pelanggan}`);
     printerKasir.println("--------------------------------");
     
+    // DETAIL ITEM
     data.items_detail.forEach((item: any) => {
       printerKasir.println(`${item.nama_produk}`);
-      printerKasir.println(`${item.qty} x ${Number(item.subtotal/item.qty).toLocaleString('id-ID')}    ${Number(item.subtotal).toLocaleString('id-ID')}`);
+      const infoKiri = `${item.qty} x ${Number(item.subtotal/item.qty).toLocaleString('id-ID')}`;
+      const infoKanan = `${Number(item.subtotal).toLocaleString('id-ID')}`;
+      printerKasir.leftRight(infoKiri, infoKanan);
     });
     
     printerKasir.println("--------------------------------");
     printerKasir.bold(true);
-    printerKasir.println(`TOTAL       Rp ${Number(data.total_harga).toLocaleString('id-ID')}`);
+    printerKasir.leftRight("TOTAL", `Rp ${Number(data.total_harga).toLocaleString('id-ID')}`);
     printerKasir.bold(false);
-    printerKasir.println(`Metode      ${data.metode_pembayaran}`);
+    printerKasir.leftRight("Metode", `${data.metode_pembayaran}`);
     printerKasir.println("--------------------------------");
+    
     printerKasir.alignCenter();
     printerKasir.println("Terima Kasih");
     printerKasir.println("Silakan datang kembali");
@@ -60,6 +79,18 @@ export async function POST(request: Request) {
     printerDapur.bold(false);
     printerDapur.println("--------------------------------");
     
+    // --- CETAK NOMOR ANTREAN DAPUR ---
+    printerDapur.newLine();
+    printerDapur.alignCenter();
+    printerDapur.bold(true);
+    printerDapur.setTextSize(2, 2); 
+    printerDapur.println(`No. ${data.nomor_antrian}`);
+    printerDapur.setTextSize(0, 0); 
+    printerDapur.bold(false);
+    printerDapur.newLine();
+    printerDapur.println("--------------------------------");
+    // ---------------------------------
+
     printerDapur.alignLeft();
     printerDapur.println(`Kode : ${data.kode_transaksi}`);
     printerDapur.println(`Jam  : ${new Date(data.tanggal).toLocaleTimeString('id-ID')}`);

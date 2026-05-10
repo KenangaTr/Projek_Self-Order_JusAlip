@@ -6,6 +6,21 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { nama_pelanggan, no_telp, total_harga, metode_bayar, cart_items } = body;
 
+    // --- LOGIKA NOMOR ANTREAN OTOMATIS ---
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Atur jam ke 00:00:00 untuk awal hari
+
+    const countToday = await prisma.transaksi.count({
+      where: {
+        tanggal: {
+          gte: today, // Hitung semua transaksi yang terjadi mulai hari ini
+        }
+      }
+    });
+    
+    const nomorAntrianBaru = countToday + 1;
+    // ------------------------------------
+
     // Membuat kode transaksi unik otomatis (Format: TRX-TahunBulanTanggal-Random)
     const timestamp = Date.now().toString().slice(-6);
     const kodeTrx = `TRX-${timestamp}`;
@@ -13,6 +28,7 @@ export async function POST(request: Request) {
     const transaksiBaru = await prisma.transaksi.create({
       data: {
         kode_transaksi: kodeTrx,
+        nomor_antrian: nomorAntrianBaru, // <--- Memasukkan nomor antrean ke database
         nama_pelanggan: nama_pelanggan || "Anonim",
         no_telp: no_telp || "-",
         total_harga: total_harga,
