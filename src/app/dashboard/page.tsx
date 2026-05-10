@@ -9,9 +9,11 @@ import {
 const COLORS = ['#c2aa6b', '#567261', '#123524', '#e9ece6'];
 
 export default function DashboardPage() {
-  const [timeFilter, setTimeFilter] = useState('30days');
+  const [timeFilter, setTimeFilter] = useState('today');
+  // === STATE BARU: PENYIMPAN BULAN & TAHUN PILIHAN ===
+  const [customMonth, setCustomMonth] = useState(''); 
+  
   const [activeMetric, setActiveMetric] = useState<'revenue' | 'transactions' | 'items'>('revenue');
-
   const [searchQuery, setSearchQuery] = useState('');
 
   const [transactionToDelete, setTransactionToDelete] = useState<number | null>(null);
@@ -23,23 +25,17 @@ export default function DashboardPage() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  const handleLogout = async () => {
-    try {
-      const res = await fetch('/api/auth/logout', { method: 'POST' });
-      if (res.ok) {
-        window.location.href = '/'; 
-      }
-    } catch (error) {
-      console.error("Logout gagal:", error);
-      alert("Terjadi kesalahan saat logout.");
-    }
-  };
-  
+  // === MODIFIKASI: MENGIRIMKAN DATA BULAN KE BACKEND ===
   useEffect(() => {
+    let url = `/api/dashboard?filter=${timeFilter}`;
+    if (timeFilter === 'custom' && customMonth) {
+      url += `&month=${customMonth}`; // Contoh: &month=2026-05
+    }
+
     const fetchInitialData = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
+        const response = await fetch(url);
         if (response.ok) setStats(await response.json());
       } catch (error) {
         console.error("Gagal memuat:", error);
@@ -50,7 +46,7 @@ export default function DashboardPage() {
 
     const fetchSilentData = async () => {
       try {
-        const response = await fetch(`/api/dashboard?filter=${timeFilter}`);
+        const response = await fetch(url);
         if (response.ok) {
           const newData = await response.json();
           setStats(newData);
@@ -63,7 +59,7 @@ export default function DashboardPage() {
     fetchInitialData();
     const intervalId = setInterval(fetchSilentData, 3000);
     return () => clearInterval(intervalId);
-  }, [timeFilter]);
+  }, [timeFilter, customMonth]);
 
   const executeDelete = async () => {
     if (transactionToDelete === null) return;
@@ -96,6 +92,13 @@ export default function DashboardPage() {
     const optionsFull: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
     const optionsShort: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
 
+    // Label untuk Bulan Khusus
+    if (timeFilter === 'custom' && customMonth) {
+      const [year, month] = customMonth.split('-');
+      const date = new Date(Number(year), Number(month) - 1, 1);
+      return date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' }).toUpperCase();
+    }
+
     if (timeFilter === 'today') return now.toLocaleDateString('id-ID', optionsFull);
     if (timeFilter === 'yesterday') {
       const yesterday = new Date();
@@ -118,22 +121,19 @@ export default function DashboardPage() {
   const chartConfig = {
     revenue: {
       title: "📈 Tren Pendapatan",
-      dataKey: "total", 
-      color: "#567261",
+      dataKey: "total", color: "#567261",
       formatter: (val: any) => [`Rp ${Number(val).toLocaleString('id-ID')}`, 'Pendapatan'],
       yAxisFormatter: (val: any) => `Rp${val/1000}k`
     },
     transactions: {
       title: "📉 Tren Total Transaksi",
-      dataKey: "transactions", 
-      color: "#c2aa6b",
+      dataKey: "transactions", color: "#c2aa6b",
       formatter: (val: any) => [`${val} Transaksi`, 'Total Transaksi'],
       yAxisFormatter: (val: any) => val
     },
     items: {
       title: "📊 Tren Jus Terjual",
-      dataKey: "items", 
-      color: "#b54a4a",
+      dataKey: "items", color: "#b54a4a",
       formatter: (val: any) => [`${val} Cup`, 'Jus Terjual'],
       yAxisFormatter: (val: any) => val
     }
@@ -158,10 +158,7 @@ export default function DashboardPage() {
       </div>
 
       <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 transition-opacity ${isLoading ? 'opacity-50' : 'opacity-100'}`}>
-        <div 
-          onClick={() => setActiveMetric('transactions')}
-          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'transactions' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
-        >
+        <div onClick={() => setActiveMetric('transactions')} className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'transactions' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'transactions' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Total Transaksi</p>
@@ -171,10 +168,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div 
-          onClick={() => setActiveMetric('revenue')}
-          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'revenue' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
-        >
+        <div onClick={() => setActiveMetric('revenue')} className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'revenue' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'revenue' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Total Pendapatan</p>
@@ -184,10 +178,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div 
-          onClick={() => setActiveMetric('items')}
-          className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'items' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}
-        >
+        <div onClick={() => setActiveMetric('items')} className={`rounded-2xl p-6 shadow-sm border cursor-pointer transition transform hover:scale-[1.02] ${activeMetric === 'items' ? 'bg-[#123524] border-[#163d27] text-white shadow-lg' : 'bg-white border-gray-100 text-[#061e12]'}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className={`text-xs font-bold mb-1 uppercase tracking-wider ${activeMetric === 'items' ? 'text-[#c2aa6b]' : 'text-gray-400'}`}>Jus Terjual</p>
@@ -207,11 +198,25 @@ export default function DashboardPage() {
                 {getDateRangeLabel()}
               </p>
             </div>
-            <div className="flex bg-[#e9ece6] p-1 rounded-lg">
-              <button onClick={() => setTimeFilter('today')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'today' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Hari Ini</button>
-              <button onClick={() => setTimeFilter('yesterday')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === 'yesterday' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Kemarin</button>
-              <button onClick={() => setTimeFilter('7days')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === '7days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>7 Hari</button>
-              <button onClick={() => setTimeFilter('30days')} className={`px-4 py-1.5 text-xs font-bold rounded-md transition ${timeFilter === '30days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>30 Hari</button>
+            
+            {/* === BARIS FILTER WAKTU & BULAN === */}
+            <div className="flex bg-[#e9ece6] p-1 rounded-lg items-center gap-1 overflow-x-auto">
+              
+              <input 
+                type="month" 
+                value={customMonth}
+                onChange={(e) => {
+                  setCustomMonth(e.target.value);
+                  setTimeFilter('custom'); // Otomatis ubah mode jadi custom jika bulan dipilih
+                }}
+                className={`px-3 py-1.5 text-xs font-bold rounded-md outline-none transition cursor-pointer ${timeFilter === 'custom' ? 'bg-white shadow-sm border border-gray-200 text-[#061e12]' : 'bg-transparent text-gray-500 border border-transparent'}`}
+                title="Pilih Bulan Khusus"
+              />
+              <div className="w-px h-5 bg-gray-300 mx-1"></div> {/* Garis Pemisah */}
+              <button onClick={() => {setTimeFilter('today'); setCustomMonth('');}} className={`px-4 py-1.5 text-xs font-bold rounded-md transition whitespace-nowrap ${timeFilter === 'today' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Hari Ini</button>
+              <button onClick={() => {setTimeFilter('yesterday'); setCustomMonth('');}} className={`px-4 py-1.5 text-xs font-bold rounded-md transition whitespace-nowrap ${timeFilter === 'yesterday' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>Kemarin</button>
+              <button onClick={() => {setTimeFilter('7days'); setCustomMonth('');}} className={`px-4 py-1.5 text-xs font-bold rounded-md transition whitespace-nowrap ${timeFilter === '7days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>7 Hari</button>
+              <button onClick={() => {setTimeFilter('30days'); setCustomMonth('');}} className={`px-4 py-1.5 text-xs font-bold rounded-md transition whitespace-nowrap ${timeFilter === '30days' ? 'bg-white shadow-sm text-[#061e12]' : 'text-gray-500 hover:text-[#061e12]'}`}>30 Hari</button>
             </div>
           </div>
 
@@ -294,10 +299,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* PERUBAHAN DI SINI: MENAMBAHKAN EFEK SCROLL KE BAWAH */}
           <div className="overflow-x-auto overflow-y-auto max-h-[400px] relative">
             <table className="w-full text-left border-collapse">
-              {/* thead dibuat sticky agar tidak ikut ter-scroll */}
               <thead className="sticky top-0 z-10 bg-gray-50 shadow-sm">
                 <tr className="text-gray-500 text-xs uppercase tracking-wider">
                   <th className="px-6 py-4 font-bold bg-gray-50">Waktu</th>
@@ -312,7 +315,6 @@ export default function DashboardPage() {
                 ) : (
                   filteredTransactions.map((trx: any) => (
                     <tr key={trx.id_transaksi} className="hover:bg-gray-50 transition group">
-                      
                       <td className="px-6 py-4">
                         <div className="text-xs font-bold text-[#061e12]">
                           {new Date(trx.tanggal).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
@@ -321,19 +323,16 @@ export default function DashboardPage() {
                           {new Date(trx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
                         </div>
                       </td>
-
                       <td className="px-6 py-4">
                         <div className="font-black text-xs text-[#c2aa6b] mb-1">{trx.kode_transaksi}</div>
                         <div className="font-bold text-sm text-[#061e12]">{trx.nama_pelanggan || "Pelanggan"}</div>
                       </td>
-
                       <td className="px-6 py-4">
                         <div className="font-black text-[#567261]">Rp{Number(trx.total_harga).toLocaleString('id-ID')}</div>
                         <div className="bg-[#e9ece6] text-[#061e12] text-[9px] font-black px-2 py-0.5 rounded uppercase w-max mt-1">
                           {trx.metode_pembayaran}
                         </div>
                       </td>
-
                       <td className="px-6 py-4 text-center">
                         <button 
                           onClick={() => setTransactionToDelete(trx.id_transaksi)}
@@ -345,7 +344,6 @@ export default function DashboardPage() {
                           </svg>
                         </button>
                       </td>
-
                     </tr>
                   ))
                 )}
@@ -363,25 +361,13 @@ export default function DashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3Z" />
               </svg>
             </div>
-            
             <h3 className="text-2xl font-black text-center text-[#061e12] mb-3">Batalkan Transaksi?</h3>
             <p className="text-center text-gray-500 text-sm font-medium mb-8 leading-relaxed">
               Anda yakin ingin menghapus transaksi ini? Data pada laporan pendapatan dan jumlah cup terjual akan otomatis dikurangi. <br/> <strong className="text-red-500">Tindakan ini tidak bisa dibatalkan.</strong>
             </p>
-            
             <div className="flex gap-4">
-              <button 
-                onClick={() => setTransactionToDelete(null)}
-                className="flex-1 bg-gray-100 text-gray-500 font-bold py-3 rounded-xl hover:bg-gray-200 transition"
-                disabled={isDeleting}
-              >
-                Kembali
-              </button>
-              <button 
-                onClick={executeDelete}
-                className="flex-1 bg-[#b54a4a] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-900/20"
-                disabled={isDeleting}
-              >
+              <button onClick={() => setTransactionToDelete(null)} className="flex-1 bg-gray-100 text-gray-500 font-bold py-3 rounded-xl hover:bg-gray-200 transition" disabled={isDeleting}>Kembali</button>
+              <button onClick={executeDelete} className="flex-1 bg-[#b54a4a] text-white font-bold py-3 rounded-xl hover:bg-red-700 transition shadow-lg shadow-red-900/20" disabled={isDeleting}>
                 {isDeleting ? "Menghapus..." : "Ya, Hapus"}
               </button>
             </div>

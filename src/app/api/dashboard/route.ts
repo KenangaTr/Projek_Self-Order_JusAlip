@@ -5,15 +5,22 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const filter = searchParams.get('filter') || '30days';
+    const customMonth = searchParams.get('month'); // Parameter baru untuk "YYYY-MM"
 
     let startDate = new Date();
     let endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
 
-    let daysCount = 30; // Default untuk loop tanggal
+    let daysCount = 30; 
 
-    // Tentukan Rentang Waktu
-    if (filter === 'today') {
+    // === PENENTUAN RENTANG WAKTU ===
+    if (filter === 'custom' && customMonth) {
+      // Logika jika memilih Bulan & Tahun tertentu
+      const [year, month] = customMonth.split('-');
+      startDate = new Date(Number(year), Number(month) - 1, 1, 0, 0, 0, 0); // Hari pertama di bulan tsb
+      endDate = new Date(Number(year), Number(month), 0, 23, 59, 59, 999); // Hari terakhir di bulan tsb
+      daysCount = endDate.getDate(); // Dapatkan jumlah hari dalam bulan tersebut (28/29/30/31)
+    } else if (filter === 'today') {
       startDate.setHours(0, 0, 0, 0);
       daysCount = 1;
     } else if (filter === 'yesterday') {
@@ -53,27 +60,21 @@ export async function GET(request: Request) {
       total: item._sum.jumlah || 0
     }));
 
-    // ==========================================
-    // LOGIKA UPDATE: MENGHITUNG TOTAL, TRANSAKSI, & ITEMS
-    // ==========================================
+    // --- LOGIKA UPDATE: MENGHITUNG TOTAL, TRANSAKSI, & ITEMS ---
     const recentTrx = await prisma.transaksi.findMany({
       where: dateFilter, 
       orderBy: { tanggal: 'asc' },
-      include: {
-        items: true // <-- Penting: Ikut sertakan keranjang belanjanya
-      }
+      include: { items: true }
     });
 
     const trendMap = new Map();
 
     if (filter === 'today' || filter === 'yesterday') {
-      // 1. Siapkan 24 Jam Penuh
       for (let i = 0; i < 24; i++) {
         const hour = `${i.toString().padStart(2, '0')}:00`;
         trendMap.set(hour, { total: 0, transactions: 0, items: 0 });
       }
       
-      // 2. Isi timeline dengan data
       recentTrx.forEach(trx => {
         const hour = `${new Date(trx.tanggal).getHours().toString().padStart(2, '0')}:00`;
         if (trendMap.has(hour)) {
@@ -88,7 +89,7 @@ export async function GET(request: Request) {
         }
       });
     } else {
-      // 1. Siapkan Tanggal Penuh
+      // Loop untuk 7 Hari, 30 Hari, ATAU Bulan Tertentu
       for (let i = 0; i < daysCount; i++) {
         const loopDate = new Date(startDate);
         loopDate.setDate(loopDate.getDate() + i);
@@ -96,7 +97,6 @@ export async function GET(request: Request) {
         trendMap.set(dateLabel, { total: 0, transactions: 0, items: 0 });
       }
       
-      // 2. Isi timeline dengan data
       recentTrx.forEach(trx => {
         const dateLabel = new Date(trx.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
         if (trendMap.has(dateLabel)) {
@@ -112,14 +112,9 @@ export async function GET(request: Request) {
       });
     }
 
-    // Format hasil akhirnya agar siap dibaca oleh Recharts di Frontend
     const trendPendapatan = Array.from(trendMap, ([date, data]) => ({ 
-      date, 
-      total: data.total,
-      transactions: data.transactions,
-      items: data.items
+      date, total: data.total, transactions: data.transactions, items: data.items
     }));
-    // ==========================================
 
     // --- DATA PIE CHART & TABEL ---
     const metodeBeli = await prisma.transaksi.groupBy({
@@ -129,10 +124,8 @@ export async function GET(request: Request) {
       name: m.metode_pembayaran, value: m._count._all
     }));
 
-    // PERUBAHAN DI SINI: take: 5 dihapus!
     const transaksiTerbaru = await prisma.transaksi.findMany({
-      where: dateFilter, 
-      orderBy: { tanggal: 'desc' } // Tetap diurutkan dari yang paling baru
+      where: dateFilter, orderBy: { tanggal: 'desc' } 
     });
 
     return NextResponse.json({
