@@ -14,12 +14,13 @@ export default function KioskPage() {
 
   const [modalView, setModalView] = useState<"closed" | "detail" | "qris">("closed");
 
-  // HANYA ADA NAMA, NOMOR HP SUDAH DIHAPUS
   const [customerName, setCustomerName] = useState("");
 
   const [qrisUrl, setQrisUrl] = useState<string | null>(null);
   const [isQrisLoading, setIsQrisLoading] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
+  
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -61,6 +62,7 @@ export default function KioskPage() {
     setIsQrisLoading(true);
     setQrisUrl(null);
     setOrderId(null); 
+    setPaymentSuccess(false); 
 
     try {
       const payload = {
@@ -91,6 +93,7 @@ export default function KioskPage() {
     }
   };
 
+  // FUNGSI INI SEKARANG HANYA FOKUS MENYIMPAN DAN MENCETAK (TIDAK MENUTUP LAYAR)
   const handleFinishTransaction = async () => {
     const cartItemsData = Object.entries(cart).map(([id, qty]) => {
       const product = data.allProducts.find((p) => p.id_produk === Number(id));
@@ -103,8 +106,7 @@ export default function KioskPage() {
     });
 
     const payload = {
-      nama_pelanggan: customerName || "Pelanggan", 
-      no_telp: "-", // Otomatis diisi strip agar database tidak error
+      nama_pelanggan: customerName || "Pelanggan",
       total_harga: totalPrice,
       metode_bayar: "QRIS",
       cart_items: cartItemsData,
@@ -133,10 +135,6 @@ export default function KioskPage() {
         } catch (printError) {
           console.error("Gagal terhubung ke printer:", printError);
         }
-
-        setModalView("closed");
-        setCart({});
-        setCustomerName("");
       } else {
         alert("Terjadi kesalahan saat menyimpan transaksi.");
       }
@@ -160,8 +158,21 @@ export default function KioskPage() {
       });
 
       if (res.ok) {
-        alert("✅ Pembayaran Lunas! Transaksi disimpan dan struk sedang dicetak...");
-        await handleFinishTransaction(); 
+        // 1. Langsung tampilkan UI Centang Hijau
+        setPaymentSuccess(true);
+        
+        // 2. LANGSUNG eksekusi perintah simpan & cetak printer tanpa ditahan (berjalan di background)
+        handleFinishTransaction(); 
+        
+        // 3. Tahan layarnya saja selama 3 detik (3000 ms)
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        
+        // 4. Setelah 3 detik selesai, baru layar ditutup dan keranjang dibersihkan
+        setModalView("closed");
+        setCart({});
+        setCustomerName("");
+        setPaymentSuccess(false);
+
       } else {
         alert("Gagal menembak webhook lokal.");
       }
@@ -179,11 +190,7 @@ export default function KioskPage() {
 
   return (
     <>
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `html { scroll-behavior: smooth; }`,
-        }}
-      />
+      <style dangerouslySetInnerHTML={{ __html: `html { scroll-behavior: smooth; }` }} />
 
       <main className="min-h-screen flex flex-col items-center pb-32 bg-[#061e12]">
         <nav className="fixed top-0 w-full z-50 bg-[#061e12]/80 backdrop-blur-md border-b border-white/10 px-8 py-4 flex justify-between items-center">
@@ -191,9 +198,7 @@ export default function KioskPage() {
             <div className="w-8 h-10 bg-white rounded flex items-center justify-center text-[#061e12] font-black text-[10px] text-center leading-tight">
               Jus<br />Alif
             </div>
-            <span className="text-white font-bold tracking-tighter text-lg">
-              ALIF POS
-            </span>
+            <span className="text-white font-bold tracking-tighter text-lg">ALIF POS</span>
           </div>
 
           <div className="hidden md:flex items-center gap-8 text-xs font-bold uppercase tracking-widest text-gray-300">
@@ -363,33 +368,49 @@ export default function KioskPage() {
 
               {modalView === "qris" && (
                 <div className="flex flex-col items-center justify-center py-8">
-                  <div className="font-black text-3xl tracking-tighter mb-8 text-[#061e12]">Scan QRIS</div>
-                  <div className="w-80 bg-white border-4 border-gray-100 rounded-3xl flex flex-col items-center justify-center mb-8 relative shadow-inner overflow-hidden pt-4 pb-6">
-                    {isQrisLoading ? (
-                      <div className="flex flex-col items-center py-16">
-                        <div className="w-10 h-10 border-4 border-gray-200 border-t-[#c2aa6b] rounded-full animate-spin mb-3"></div>
-                        <div className="text-gray-400 text-sm font-bold animate-pulse">Memuat QRIS...</div>
+                  {paymentSuccess ? (
+                    <div className="flex flex-col items-center justify-center py-10 animate-[scale-up_0.3s_ease-out]">
+                      <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-5xl mb-6 shadow-inner">
+                        ✓
                       </div>
-                    ) : qrisUrl ? (
-                      <div className="flex flex-col items-center w-full">
-                        <img src={qrisUrl} alt="QRIS Midtrans" className="w-56 h-56 object-contain" />
-                        {orderId && (
-                          <div className="mt-2 text-center">
-                            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Order ID / Virtual Account</p>
-                            <p className="text-sm font-black text-[#061e12] bg-gray-100 px-3 py-1 rounded-md mt-1 border border-gray-200 select-all">{orderId}</p>
+                      <h4 className="text-center font-black text-3xl mb-4 text-[#061e12]">
+                        Transaksi Berhasil!
+                      </h4>
+                      <p className="text-gray-500 text-center text-sm font-bold animate-pulse leading-relaxed">
+                        Mohon tunggu sebentar... <br/> Struk Anda sedang dicetak dan pesanan segera diproses.
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="font-black text-3xl tracking-tighter mb-8 text-[#061e12]">Scan QRIS</div>
+                      <div className="w-80 bg-white border-4 border-gray-100 rounded-3xl flex flex-col items-center justify-center mb-8 relative shadow-inner overflow-hidden pt-4 pb-6">
+                        {isQrisLoading ? (
+                          <div className="flex flex-col items-center py-16">
+                            <div className="w-10 h-10 border-4 border-gray-200 border-t-[#c2aa6b] rounded-full animate-spin mb-3"></div>
+                            <div className="text-gray-400 text-sm font-bold animate-pulse">Memuat QRIS...</div>
                           </div>
+                        ) : qrisUrl ? (
+                          <div className="flex flex-col items-center w-full">
+                            <img src={qrisUrl} alt="QRIS Midtrans" className="w-56 h-56 object-contain" />
+                            {orderId && (
+                              <div className="mt-2 text-center">
+                                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Order ID / Virtual Account</p>
+                                <p className="text-sm font-black text-[#061e12] bg-gray-100 px-3 py-1 rounded-md mt-1 border border-gray-200 select-all">{orderId}</p>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-red-400 text-sm font-bold py-16">Gagal memuat QR Code</div>
+                        )}
+
+                        {!isQrisLoading && qrisUrl && (
+                          <button onClick={handleSimulateWebhook} className="mt-6 bg-[#c2aa6b] text-[#061e12] text-xs font-bold px-8 py-3 rounded-full shadow-md hover:scale-105 transition w-[90%]">
+                            (Dev) Tembak Sinyal Webhook!
+                          </button>
                         )}
                       </div>
-                    ) : (
-                      <div className="text-red-400 text-sm font-bold py-16">Gagal memuat QR Code</div>
-                    )}
-
-                    {!isQrisLoading && qrisUrl && (
-                      <button onClick={handleSimulateWebhook} className="mt-6 bg-[#c2aa6b] text-[#061e12] text-xs font-bold px-8 py-3 rounded-full shadow-md hover:scale-105 transition w-[90%]">
-                        (Dev) Tembak Sinyal Webhook!
-                      </button>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
