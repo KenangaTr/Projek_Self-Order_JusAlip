@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,6 +45,20 @@ export default function LoginPage() {
       <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-[#c2aa6b] rounded-full blur-3xl opacity-20"></div>
 
       <div className="bg-white rounded-3xl p-10 w-full max-w-md shadow-2xl relative z-10 border border-gray-100">
+        
+        {/* Tombol Kembali ke Menu (Diperbesar dengan Icon SVG) */}
+        <Link 
+          href="/" 
+          className="inline-flex items-center gap-3 text-gray-400 hover:text-[#061e12] transition-all font-bold mb-8 group w-max"
+        >
+          <div className="w-10 h-10 rounded-full bg-gray-50 flex items-center justify-center border border-gray-200 group-hover:bg-[#c2aa6b] group-hover:border-[#c2aa6b] group-hover:text-[#061e12] transition-all shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+            </svg>
+          </div>
+          <span className="text-sm">Kembali ke Menu</span>
+        </Link>
+
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-[#061e12] rounded-xl flex items-center justify-center text-white font-black text-xl mx-auto mb-4 shadow-lg shadow-green-900/30">
             JA
